@@ -1,13 +1,3 @@
-"""
-Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
-Uses ONLY already-unzipped dataset folder from Google Drive.
-
-Colab quick run:
-1) Mount Google Drive.
-2) !pip install -r requirements.txt
-3) !python colab_breed_recognition.py --mode all --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
-4) !python colab_breed_recognition.py --mode app --work_dir /content --dataset_dir "/content/drive/MyDrive/datasets/breeds"
-"""
 
 import argparse
 import json
@@ -15,6 +5,7 @@ import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
 
 import gradio as gr
 import torch
@@ -202,7 +193,6 @@ def launch_app(model_dir: Path):
     demo.launch()
 
 
-
 def ask_dataset_dir_if_missing(dataset_dir: str) -> str:
     if dataset_dir:
         return dataset_dir
@@ -229,14 +219,6 @@ def main(args):
     dataset_dir = ask_dataset_dir_if_missing(args.dataset_dir)
     breeds_root = resolve_breeds_root(dataset_dir)
 
-
-
-def main(args):
-    work_dir = Path(args.work_dir)
-    model_dir = work_dir / "models"
-    breeds_root = resolve_breeds_root(args.dataset_dir)
-    
-
     if args.mode in {"preprocess", "all"}:
         report = validate_structure(breeds_root)
         print("Validation report:")
@@ -244,21 +226,8 @@ def main(args):
 
     if args.mode in {"train", "all"}:
         train_model(breeds_root, model_dir, epochs=args.epochs, lr=args.lr, batch_size=args.batch_size)
-
         if args.mode == "all":
             interactive_predict_single_image(model_dir)
-
-
-
-        if args.mode == "all":
-            interactive_predict_single_image(model_dir)
-
-
-
-        if args.mode == "all":
-            interactive_predict_single_image(model_dir)
-
-
 
     if args.mode == "app":
         launch_app(model_dir)
@@ -268,11 +237,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["preprocess", "train", "app", "all"], default="all")
     parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
-    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
-    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
-    parser.add_argument("--dataset_dir", type=str, required=True, help="Path to already-unzipped breeds folder from Google Drive")
     parser.add_argument("--work_dir", type=str, default=".")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
-    main(parser.parse_args())
+
+    # Check if running in an interactive environment (like Colab/Jupyter)
+    if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
+        # If running in Colab/Jupyter, parse an empty list of arguments
+        args = parser.parse_args([])
+    else:
+        # Otherwise, parse arguments from the command line
+        args = parser.parse_args()
+
+    main(args)
