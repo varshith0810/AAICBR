@@ -1,9 +1,13 @@
 from pathlib import Path
 
+
 import zipfile
+
 from collections import Counter
 
 from src.config import Paths, BREEDS
+
+
 
 
 
@@ -16,10 +20,12 @@ def resolve_breeds_root(dataset_dir: Path) -> Path:
         f"Invalid dataset_dir: {dataset_dir}. Expected train/test or breeds/train + breeds/test."
     )
 
+
 def unzip_dataset(zip_path: Path, target_dir: Path) -> None:
     target_dir.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(target_dir.parent)
+
 
 
 
@@ -53,6 +59,7 @@ def main(dataset_dir: str = ""):
     root = resolve_breeds_root(Path(dataset_dir))
     report = validate_structure(root)
 
+
 def main():
     paths = Paths()
     if not paths.data_zip.exists():
@@ -60,6 +67,7 @@ def main():
 
     unzip_dataset(paths.data_zip, paths.extracted_data)
     report = validate_structure(paths.extracted_data)
+
 
     print("Preprocessing completed.")
     print(report)
@@ -72,5 +80,7 @@ if __name__ == "__main__":
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     main(arg)
 
+
     main()
+
 

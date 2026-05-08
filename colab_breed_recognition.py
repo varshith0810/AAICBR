@@ -202,10 +202,38 @@ def launch_app(model_dir: Path):
     demo.launch()
 
 
+
+def ask_dataset_dir_if_missing(dataset_dir: str) -> str:
+    if dataset_dir:
+        return dataset_dir
+    print("Enter dataset directory path (must contain train/test or breeds/train+test):")
+    return input().strip()
+
+
+def interactive_predict_single_image(model_dir: Path):
+    model, classes, tfms, device = load_predictor(model_dir)
+    print("Training completed. Enter full image path to predict breed (or press Enter to skip):")
+    image_path = input().strip()
+    if not image_path:
+        print("Skipped single-image prediction.")
+        return
+    img = Image.open(image_path).convert("RGB")
+    out, _ = predict_with_fields(img, "", "", model, classes, tfms, device)
+    print("Prediction output:")
+    print(json.dumps(out, indent=2))
+
+
+def main(args):
+    work_dir = Path(args.work_dir)
+    model_dir = work_dir / "models"
+    dataset_dir = ask_dataset_dir_if_missing(args.dataset_dir)
+    breeds_root = resolve_breeds_root(dataset_dir)
+
 def main(args):
     work_dir = Path(args.work_dir)
     model_dir = work_dir / "models"
     breeds_root = resolve_breeds_root(args.dataset_dir)
+
 
     if args.mode in {"preprocess", "all"}:
         report = validate_structure(breeds_root)
@@ -215,6 +243,10 @@ def main(args):
     if args.mode in {"train", "all"}:
         train_model(breeds_root, model_dir, epochs=args.epochs, lr=args.lr, batch_size=args.batch_size)
 
+        if args.mode == "all":
+            interactive_predict_single_image(model_dir)
+
+
     if args.mode == "app":
         launch_app(model_dir)
 
@@ -222,7 +254,11 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["preprocess", "train", "app", "all"], default="all")
+
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
+
     parser.add_argument("--dataset_dir", type=str, required=True, help="Path to already-unzipped breeds folder from Google Drive")
+
     parser.add_argument("--work_dir", type=str, default=".")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch_size", type=int, default=32)
