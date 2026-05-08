@@ -229,12 +229,12 @@ def main(args):
     dataset_dir = ask_dataset_dir_if_missing(args.dataset_dir)
     breeds_root = resolve_breeds_root(dataset_dir)
 
+
 def main(args):
     work_dir = Path(args.work_dir)
     model_dir = work_dir / "models"
     breeds_root = resolve_breeds_root(args.dataset_dir)
-
-
+    ]
     if args.mode in {"preprocess", "all"}:
         report = validate_structure(breeds_root)
         print("Validation report:")
@@ -247,6 +247,11 @@ def main(args):
             interactive_predict_single_image(model_dir)
 
 
+
+        if args.mode == "all":
+            interactive_predict_single_image(model_dir)
+
+
     if args.mode == "app":
         launch_app(model_dir)
 
@@ -254,6 +259,9 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["preprocess", "train", "app", "all"], default="all")
+
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
+
 
     parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
 

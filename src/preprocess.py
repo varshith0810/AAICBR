@@ -1,13 +1,13 @@
 from pathlib import Path
 
 
+
 import zipfile
 
+]
 from collections import Counter
 
 from src.config import Paths, BREEDS
-
-
 
 
 
@@ -21,6 +21,7 @@ def resolve_breeds_root(dataset_dir: Path) -> Path:
     )
 
 
+
 def unzip_dataset(zip_path: Path, target_dir: Path) -> None:
     target_dir.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "r") as zf:
@@ -29,6 +30,7 @@ def unzip_dataset(zip_path: Path, target_dir: Path) -> None:
 
 
 
+        ]
 def validate_structure(root: Path) -> dict:
     expected_splits = ["train", "test"]
     report = {"missing_splits": [], "missing_breeds": {}, "counts": {}}
@@ -55,6 +57,13 @@ def validate_structure(root: Path) -> dict:
 
 def main(dataset_dir: str = ""):
     if not dataset_dir:
+        dataset_dir = input("Enter dataset directory path (train/test or breeds/train/test): ").strip()
+    root = resolve_breeds_root(Path(dataset_dir))
+    report = validate_structure(root)
+
+
+def main(dataset_dir: str = ""):
+    if not dataset_dir:
         raise ValueError("Pass dataset_dir path that contains train/test folders.")
     root = resolve_breeds_root(Path(dataset_dir))
     report = validate_structure(root)
@@ -69,6 +78,7 @@ def main():
     report = validate_structure(paths.extracted_data)
 
 
+
     print("Preprocessing completed.")
     print(report)
 
@@ -81,6 +91,8 @@ if __name__ == "__main__":
     main(arg)
 
 
+
     main()
+
 
 

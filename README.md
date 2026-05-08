@@ -1,6 +1,16 @@
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
 
 
+## Dataset path prompt behavior (updated)
+
+The code now asks for dataset path if not provided.
+
+- `colab_breed_recognition.py` asks dataset path before training when `--dataset_dir` is missing.
+- `src/preprocess.py` asks dataset path interactively if you run without argument.
+- `src/train.py` asks dataset path interactively if you run without argument.
+
+## Colab run
+
 ## Updated behavior (as requested)
 
 Now the script does the following in sequence:
@@ -24,9 +34,11 @@ Either of these:
 
 
 ### 1) Install dependencies
+
 ```bash
 !pip install -r requirements.txt
 ```
+
 
 
 ### 2) Mount Google Drive
@@ -39,18 +51,42 @@ drive.mount('/content/drive')
 ```
 
 
+
+
 ### 3) Run full flow (interactive prompts enabled)
+
 ```bash
 !python colab_breed_recognition.py --mode all --work_dir /content
 ```
+
+
+### Full flow with explicit path
 
 It will ask:
 - Dataset directory path (`train/test` or `breeds/train/test`)
 - Image path for single prediction after training
 
 ### Optional (skip prompt by passing dataset path)
+
 ```bash
 !python colab_breed_recognition.py --mode all --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
+```
+
+
+## Modular run
+
+### Option 1 (interactive prompt)
+```bash
+python -m src.preprocess
+python -m src.train
+python app.py
+```
+
+### Option 2 (pass path explicitly)
+```bash
+python -m src.preprocess /content/drive/MyDrive/datasets/breeds
+python -m src.train /content/drive/MyDrive/datasets/breeds
+python app.py
 ```
 
 ## Launch upload-based app anytime
@@ -80,7 +116,7 @@ Either:
 ## Modular order (optional)
 ```bash
 python -m src.preprocess /content/drive/MyDrive/datasets/breeds
-=======
+
 This project implements an **end-to-end software-only breed recognition pipeline** for the following 41 breeds:
 
 `vechur, umblachery, toda, tharparkar, surti, sahiwal, redsindhi, reddane, rathi, pulikulam, ongole, nimari, niliravi, nagpuri, nagori, murrah, mehsana, malnadgidda, krishnavalley, khillari, kherigarh, kenkatha, kasargod, kankrej, kangayam, jersey, jaffrabadi, holsteinfriesian, hariana, hallikar, guernsey, gir, deoni, dangi, brownswiss, bhadawari, bargur, banni, ayrshire, amritmahal, alambadi`.
