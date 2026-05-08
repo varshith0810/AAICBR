@@ -235,7 +235,7 @@ def main(args):
     work_dir = Path(args.work_dir)
     model_dir = work_dir / "models"
     breeds_root = resolve_breeds_root(args.dataset_dir)
-    ]
+    
 
     if args.mode in {"preprocess", "all"}:
         report = validate_structure(breeds_root)
