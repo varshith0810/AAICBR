@@ -20,6 +20,14 @@ python colab_breed_recognition.py --mode all --dataset_dir "/Users/yourname/data
 ```
 
 
+
+## Login & camera-enabled frontend
+- Login is required before prediction.
+- Set env vars for credentials:
+  - `APP_USERNAME` (default: `admin`)
+  - `APP_PASSWORD` (default: `admin123`)
+- Browser camera permission is requested with **Allow Camera** button.
+
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
 
 Yes — you can deploy with only `cattle_model_low_hw.tar.gz` (no separate `models/` folder needed).
@@ -358,6 +366,7 @@ python app.py
 
 - This implementation is strictly **software model only** (no hardware component).
 - Place the provided dataset zip at repo root as `dataset.zip` before preprocessing.
+
 
 
 

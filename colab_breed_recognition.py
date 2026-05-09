@@ -14,6 +14,7 @@ import os
 
 
 
+
 """
 Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
 Uses ONLY already-unzipped dataset folder from Google Drive.
@@ -31,7 +32,9 @@ import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+
 import sys
+
 import gradio as gr
 import torch
 import torch.nn as nn
@@ -76,6 +79,7 @@ def resolve_breeds_root(dataset_dir: str) -> Path:
     """Resolve dataset location from already-unzipped Google Drive folder only."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Example: /content/drive/MyDrive/datasets/breeds")
+
     d = Path(dataset_dir)
     if (d / "train").exists() and (d / "test").exists():
         return d
@@ -230,7 +234,10 @@ def ask_dataset_dir_if_missing(dataset_dir: str) -> str:
         return env_path
     print("Enter dataset directory path on your computer (must contain train/test or breeds/train+test):")
 
+
+
     print("Enter dataset directory path (must contain train/test or breeds/train+test):")
+
     return input().strip()
 
 
@@ -276,12 +283,17 @@ if __name__ == "__main__":
 
     parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder on local computer/Colab/Drive")
 
+
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder on local computer/Colab/Drive")
+
     parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
+
     parser.add_argument("--work_dir", type=str, default=".")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     main(parser.parse_args())
+
     main(parser.parse_args())
     # Check if running in an interactive environment (like Colab/Jupyter)
     if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
@@ -292,6 +304,7 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
     main(args)
+
 
 
 

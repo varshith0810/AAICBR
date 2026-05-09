@@ -7,6 +7,7 @@ from src.config import Paths, BREEDS
 from src.config import Paths, BREEDS
 import zipfile
 from collections import Counter
+
 from src.config import Paths, BREEDS
 
 
@@ -25,6 +26,7 @@ def unzip_dataset(zip_path: Path, target_dir: Path) -> None:
     target_dir.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(target_dir.parent)
+
 def validate_structure(root: Path) -> dict:
     expected_splits = ["train", "test"]
     report = {"missing_splits": [], "missing_breeds": {}, "counts": {}}
@@ -47,6 +49,7 @@ def validate_structure(root: Path) -> dict:
 
     return report
 
+
 def main(dataset_dir: str = ""):
     if not dataset_dir:
         dataset_dir = input("Enter dataset directory path (train/test or breeds/train/test): ").strip()
@@ -54,6 +57,7 @@ def main(dataset_dir: str = ""):
     report = validate_structure(root)
     print("Preprocessing completed.")
     print(report)
+
 
     print("Preprocessing completed.")
     print(report)
@@ -70,6 +74,7 @@ def main():
     report = validate_structure(paths.extracted_data)
     print("Preprocessing completed.")
     print(report)
+
 
 if __name__ == "__main__":
     # Example: python -m src.preprocess /content/drive/MyDrive/datasets/breeds
