@@ -1,6 +1,20 @@
 
 """
 Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
+Uses already-unzipped dataset folder from local computer/Colab/Drive.
+
+Colab quick run:
+1) Install dependencies
+2) Run with your dataset path from local system or Colab
+3) Launch app mode if needed
+"""
+
+import argparse
+import os
+
+
+"""
+Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
 Uses ONLY already-unzipped dataset folder from Google Drive.
 
 Colab quick run:
@@ -11,12 +25,15 @@ Colab quick run:
 """
 
 import argparse
+
 import json
 import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+
 import sys
+
 import gradio as gr
 import torch
 import torch.nn as nn
@@ -53,9 +70,15 @@ def validate_structure(breeds_root: Path) -> dict:
 
 
 def resolve_breeds_root(dataset_dir: str) -> Path:
+
+    """Resolve dataset location from any already-unzipped local/computer folder."""
+    if not dataset_dir:
+        raise ValueError("--dataset_dir is required. Examples: /home/user/datasets/breeds or C:/datasets/breeds")
+
     """Resolve dataset location from already-unzipped Google Drive folder only."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Example: /content/drive/MyDrive/datasets/breeds")
+
 
     d = Path(dataset_dir)
     if (d / "train").exists() and (d / "test").exists():
@@ -206,7 +229,14 @@ def launch_app(model_dir: Path):
 def ask_dataset_dir_if_missing(dataset_dir: str) -> str:
     if dataset_dir:
         return dataset_dir
+
+    env_path = os.getenv("DATASET_DIR", "").strip()
+    if env_path:
+        return env_path
+    print("Enter dataset directory path on your computer (must contain train/test or breeds/train+test):")
+
     print("Enter dataset directory path (must contain train/test or breeds/train+test):")
+
     return input().strip()
 
 
@@ -246,12 +276,17 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["preprocess", "train", "app", "all"], default="all")
+
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder on local computer/Colab/Drive")
+
     parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
+
     parser.add_argument("--work_dir", type=str, default=".")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     main(parser.parse_args())
+
     main(parser.parse_args())
 
 

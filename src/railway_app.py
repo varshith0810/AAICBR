@@ -83,12 +83,14 @@ def _load_from_bundle(bundle_path: Path):
     tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
+
 def _load_from_bundle(bundle_path: Path):
     if not bundle_path.exists():
         raise FileNotFoundError(f"Bundle not found: {bundle_path}")
 
     tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
     tmp_dir.mkdir(parents=True, exist_ok=True)
+
 
 
     with tarfile.open(bundle_path, "r:gz") as tar:
@@ -129,11 +131,44 @@ def _load_from_bundle(bundle_path: Path):
     return ts_model, classes, {"type": "torchscript", "model_path": str(ts_path), "classes_path": str(classes_path)}
 
 
+def _normalize_loaded(loaded):
+    # preferred structure: (model, classes, meta)
+    if isinstance(loaded, tuple):
+        if len(loaded) == 3:
+            return loaded[0], loaded[1], loaded[2]
+        if len(loaded) == 2:
+            return loaded[0], loaded[1], {"type": "unknown"}
+    if isinstance(loaded, dict):
+        return loaded.get("model"), loaded.get("classes"), loaded.get("meta", {"type": "unknown"})
+    raise RuntimeError(f"Unexpected loader output type={type(loaded)} value={loaded}")
+
+
+
 def get_model():
     global MODEL, CLASSES, MODEL_META
     if MODEL is None:
         bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
         loaded = _load_from_bundle(bundle)
+
+        model, classes, meta = _normalize_loaded(loaded)
+        MODEL, CLASSES, MODEL_META = model, classes, meta
+    return MODEL, CLASSES
+
+
+def inspect_bundle_files():
+    bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
+    info = {"bundle_path": str(bundle), "exists": bundle.exists(), "files": []}
+    if not bundle.exists():
+        return info
+
+    tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle_debug"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(bundle, "r:gz") as tar:
+        tar.extractall(tmp_dir)
+
+    info["files"] = sorted(str(p.relative_to(tmp_dir)) for p in tmp_dir.rglob("*") if p.is_file())
+    return info
+
         # Backward/forward compatibility for tuple shape
         if isinstance(loaded, tuple) and len(loaded) == 3:
             MODEL, CLASSES, MODEL_META = loaded
@@ -186,11 +221,24 @@ def get_model():
     return MODEL, CLASSES
 
 
+
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
 
 
+
+
+
+@app.get("/debug/bundle")
+def debug_bundle():
+    if os.getenv("DEBUG_BUNDLE", "false").lower() != "true":
+        raise HTTPException(status_code=403, detail="Enable DEBUG_BUNDLE=true to use this endpoint")
+    return inspect_bundle_files()
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return render_home()
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -228,9 +276,13 @@ async def predict_page(
     try:
         model, classes = get_model()
     except Exception as e:
+
+        raise HTTPException(status_code=500, detail=f"Model load failed: {e}. Ensure latest deployment is active.")
+
         raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
 
     model, classes = get_model()
+
 
     x = TFMS(image).unsqueeze(0)
     with torch.no_grad():
@@ -241,6 +293,7 @@ async def predict_page(
     conf = vals[0].item() * 100
     rows = "".join([f"<li>{classes[i]}: {v*100:.2f}%</li>" for v, i in zip(vals.tolist(), idxs.tolist())])
     return render_result(top, conf, animal_id, gps_coordinates, rows)
+
 
 
     return f"""
@@ -254,3 +307,4 @@ async def predict_page(
       <a href='/'>Try another image</a>
     </body></html>
     """
+

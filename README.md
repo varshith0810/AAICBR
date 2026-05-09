@@ -72,6 +72,33 @@ A frontend preview mock is available at `docs/frontend_preview.svg`.
 If you saw `too many values to unpack (expected 2)`, redeploy latest code.
 The loader now supports both 2-value and 3-value tuple returns for compatibility.
 
+
+## Use dataset path from your computer (not Drive)
+You can pass local dataset path directly:
+```bash
+python colab_breed_recognition.py --mode all --dataset_dir "/Users/yourname/datasets/breeds" --work_dir .
+```
+Windows example:
+```bash
+python colab_breed_recognition.py --mode all --dataset_dir "C:/datasets/breeds" --work_dir .
+```
+Or via environment variable:
+```bash
+export DATASET_DIR="/Users/yourname/datasets/breeds"
+python colab_breed_recognition.py --mode all --work_dir .
+```
+
+
+## Optional bundle debug endpoint
+To inspect bundle contents on Railway, set env var:
+`DEBUG_BUNDLE=true`
+Then open:
+`GET /debug/bundle`
+
+
+If you still see `too many values to unpack`, service is likely running an old deployment.
+Trigger **Redeploy latest commit** in Railway and verify with `/health`.
+=======
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes (Colab Training-Only)
 
 This repo is now simplified to focus on **training in Google Colab** and **exporting low-hardware model artifacts**.
