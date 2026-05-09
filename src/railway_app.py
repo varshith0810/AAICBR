@@ -32,7 +32,6 @@ def _load_from_bundle(bundle_path: Path):
 
     with tarfile.open(bundle_path, "r:gz") as tar:
         tar.extractall(tmp_dir)
-
     # Support tar bundles where files may be inside subfolders (e.g., models/...)
     model_candidates = list(tmp_dir.rglob("breed_classifier_int8.pt"))
     classes_candidates = list(tmp_dir.rglob("class_names.json"))
@@ -46,6 +45,13 @@ def _load_from_bundle(bundle_path: Path):
 
     model_path = model_candidates[0]
     classes_path = classes_candidates[0]
+
+    model_path = tmp_dir / "breed_classifier_int8.pt"
+    classes_path = tmp_dir / "class_names.json"
+
+    if not model_path.exists() or not classes_path.exists():
+        raise FileNotFoundError("Bundle must contain breed_classifier_int8.pt and class_names.json")
+
 
     with open(classes_path, "r", encoding="utf-8") as f:
         classes = json.load(f)
@@ -101,10 +107,14 @@ async def predict_page(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
 
+
     try:
         model, classes = get_model()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
+
+    model, classes = get_model()
+
     x = TFMS(image).unsqueeze(0)
     with torch.no_grad():
         probs = torch.softmax(model(x), dim=1)[0]
