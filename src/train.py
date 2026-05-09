@@ -7,6 +7,8 @@ from torchvision import datasets, transforms, models
 from tqdm import tqdm
 from src.config import Paths
 from src.preprocess import resolve_breeds_root
+from src.config import Paths
+from src.preprocess import resolve_breeds_root
 from src.preprocess import resolve_breeds_root
 
 def get_loaders(data_root: Path, image_size: int = 224, batch_size: int = 32):
@@ -42,15 +44,10 @@ def evaluate(model, loader, device):
             correct += (pred == y).sum().item()
             total += y.size(0)
     return correct / max(total, 1)
-
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
-
-
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
-
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3):
-
-
     paths = Paths()
     paths.model_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -100,4 +97,5 @@ if __name__ == "__main__":
     import sys
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     main(dataset_dir=arg)
+
 

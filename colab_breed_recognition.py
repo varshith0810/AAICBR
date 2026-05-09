@@ -1,11 +1,25 @@
 
+"""
+Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
+Uses ONLY already-unzipped dataset folder from Google Drive.
+
+Colab quick run:
+1) Mount Google Drive.
+2) !pip install -r requirements.txt
+3) !python colab_breed_recognition.py --mode all --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
+4) !python colab_breed_recognition.py --mode app --work_dir /content --dataset_dir "/content/drive/MyDrive/datasets/breeds"
+"""
+
+
 import argparse
 import json
 import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+
 import sys
+
 
 import gradio as gr
 import torch
@@ -242,6 +256,9 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
 
+    main(parser.parse_args())
+
+
     # Check if running in an interactive environment (like Colab/Jupyter)
     if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
         # If running in Colab/Jupyter, parse an empty list of arguments
@@ -251,3 +268,4 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
     main(args)
+
