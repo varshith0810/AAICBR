@@ -24,12 +24,72 @@ TFMS = transforms.Compose([
 ])
 
 
+
+BASE_STYLE = """
+<style>
+body{font-family:Inter,Arial,sans-serif;background:linear-gradient(120deg,#f5f7ff,#eefaf6);margin:0;color:#1f2937}
+.container{max-width:960px;margin:40px auto;padding:24px}
+.card{background:white;border-radius:18px;box-shadow:0 10px 30px rgba(17,24,39,.08);padding:24px}
+.title{font-size:28px;font-weight:700;margin-bottom:8px}
+.subtitle{color:#6b7280;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+input,button{width:100%;padding:12px;border-radius:10px;border:1px solid #d1d5db}
+button{background:#111827;color:#fff;font-weight:600;cursor:pointer}
+button:hover{background:#0b1220}
+.badge{display:inline-block;background:#ecfeff;color:#155e75;border:1px solid #a5f3fc;padding:6px 10px;border-radius:999px;font-size:12px}
+.result{margin-top:18px;padding:16px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px}
+ul{margin-top:8px}
+.footer{margin-top:16px;color:#6b7280;font-size:13px}
+@media(max-width:768px){.grid{grid-template-columns:1fr}}
+</style>
+"""
+
+
+def render_home():
+    return f"""<html><head>{BASE_STYLE}</head><body><div class='container'><div class='card'>
+    <div class='badge'>AI-Assisted Breed Recognition</div>
+    <div class='title'>Indian Cattle & Buffalo Breed Classifier</div>
+    <div class='subtitle'>Upload animal image to predict breed (software-only model).</div>
+    <form action='/predict' method='post' enctype='multipart/form-data'>
+      <div class='grid'>
+        <div><label>Upload Animal Image</label><input type='file' name='file' required></div>
+        <div><label>Animal ID (optional)</label><input type='text' name='animal_id' placeholder='COW-2024-0042'></div>
+      </div>
+      <div style='margin-top:12px'><label>GPS Coordinates (optional)</label><input type='text' name='gps_coordinates' placeholder='30.8717N, 75.8520E'></div>
+      <div style='margin-top:16px'><button type='submit'>Predict Breed</button></div>
+    </form>
+    <div class='footer'>Tip: Use clear side/front profile image for better accuracy.</div>
+    </div></div></body></html>"""
+
+
+def render_result(top, conf, animal_id, gps_coordinates, rows):
+    return f"""<html><head>{BASE_STYLE}</head><body><div class='container'><div class='card'>
+    <div class='badge'>Prediction Complete</div>
+    <div class='title'>Breed Recognition Result</div>
+    <div class='result'>
+      <p><b>Predicted Breed:</b> {top}</p>
+      <p><b>Confidence:</b> {conf:.2f}%</p>
+      <p><b>Animal ID:</b> {animal_id or 'N/A'}</p>
+      <p><b>GPS Coordinates:</b> {gps_coordinates or 'N/A'}</p>
+      <h4>Top-5 Scores</h4><ul>{rows}</ul>
+    </div>
+    <div style='margin-top:16px'><a href='/'><button>Try Another Image</button></a></div>
+    </div></div></body></html>"""
+
+
+def _load_from_bundle(bundle_path: Path):
+    if not bundle_path.exists():
+        raise FileNotFoundError(f"Bundle not found: {bundle_path}")
+    tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
 def _load_from_bundle(bundle_path: Path):
     if not bundle_path.exists():
         raise FileNotFoundError(f"Bundle not found: {bundle_path}")
 
     tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
     tmp_dir.mkdir(parents=True, exist_ok=True)
+
 
     with tarfile.open(bundle_path, "r:gz") as tar:
         tar.extractall(tmp_dir)
@@ -51,7 +111,7 @@ def _load_from_bundle(bundle_path: Path):
     with open(classes_path, "r", encoding="utf-8") as f:
         classes = json.load(f)
 
-    # Prefer int8 model, fallback to TorchScript
+
     if int8_candidates:
         model_path = int8_candidates[0]
         base = models.efficientnet_b0(weights=None)
@@ -73,6 +133,16 @@ def get_model():
     global MODEL, CLASSES, MODEL_META
     if MODEL is None:
         bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
+        loaded = _load_from_bundle(bundle)
+        # Backward/forward compatibility for tuple shape
+        if isinstance(loaded, tuple) and len(loaded) == 3:
+            MODEL, CLASSES, MODEL_META = loaded
+        elif isinstance(loaded, tuple) and len(loaded) == 2:
+            MODEL, CLASSES = loaded
+            MODEL_META = {"type": "unknown"}
+        else:
+            raise RuntimeError(f"Unexpected model loader output: {type(loaded)}")
+
         MODEL, CLASSES, MODEL_META = _load_from_bundle(bundle)
     # Support tar bundles where files may be inside subfolders (e.g., models/...)
     model_candidates = list(tmp_dir.rglob("breed_classifier_int8.pt"))
@@ -119,6 +189,12 @@ def get_model():
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
+
+
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return render_home()
     return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
@@ -148,11 +224,14 @@ async def predict_page(
         image = Image.open(BytesIO(content)).convert("RGB")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
+
     try:
         model, classes = get_model()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
+
     model, classes = get_model()
+
     x = TFMS(image).unsqueeze(0)
     with torch.no_grad():
         probs = torch.softmax(model(x), dim=1)[0]
@@ -161,6 +240,8 @@ async def predict_page(
     top = classes[idxs[0].item()]
     conf = vals[0].item() * 100
     rows = "".join([f"<li>{classes[i]}: {v*100:.2f}%</li>" for v, i in zip(vals.tolist(), idxs.tolist())])
+    return render_result(top, conf, animal_id, gps_coordinates, rows)
+
 
     return f"""
     <html><body style='font-family:Arial;max-width:700px;margin:auto;padding:20px;'>

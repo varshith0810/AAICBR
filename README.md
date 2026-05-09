@@ -62,6 +62,16 @@ The app now searches recursively for `breed_classifier_int8.pt` and `class_names
 Bundle loader now accepts either `breed_classifier_int8.pt` **or** `breed_classifier_ts.pt` plus `class_names.json`.
 If deploy still fails, verify tar contents include one model file and class map.
 
+
+
+## UI Preview
+A frontend preview mock is available at `docs/frontend_preview.svg`.
+
+
+## Debug patch
+If you saw `too many values to unpack (expected 2)`, redeploy latest code.
+The loader now supports both 2-value and 3-value tuple returns for compatibility.
+
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes (Colab Training-Only)
 
 This repo is now simplified to focus on **training in Google Colab** and **exporting low-hardware model artifacts**.
@@ -300,6 +310,7 @@ python app.py
 
 - This implementation is strictly **software model only** (no hardware component).
 - Place the provided dataset zip at repo root as `dataset.zip` before preprocessing.
+
 
 
 
