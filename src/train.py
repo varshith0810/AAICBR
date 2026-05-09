@@ -13,6 +13,9 @@ from src.preprocess import resolve_breeds_root
 
 from src.config import Paths
 from src.preprocess import resolve_breeds_root
+
+from src.config import Paths
+from src.preprocess import resolve_breeds_root
 from src.config import Paths
 from src.preprocess import resolve_breeds_root
 from src.config import Paths
@@ -56,15 +59,16 @@ def evaluate(model, loader, device):
             correct += (pred == y).sum().item()
             total += y.size(0)
     return correct / max(total, 1)
-def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
-
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3):
+
 
     paths = Paths()
     paths.model_dir.mkdir(parents=True, exist_ok=True)
@@ -74,10 +78,7 @@ def main(epochs: int = 8, lr: float = 1e-3):
         dataset_dir = input("Enter dataset directory path (train/test or breeds/train/test): ").strip()
     data_root = resolve_breeds_root(Path(dataset_dir))
     train_loader, test_loader, classes = get_loaders(data_root)
-
     train_loader, test_loader, classes = get_loaders(paths.extracted_data)
-
-
     model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
     in_features = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(in_features, len(classes))
@@ -120,6 +121,7 @@ if __name__ == "__main__":
     import sys
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     main(dataset_dir=arg)
+
 
 
 

@@ -1,6 +1,27 @@
 
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
 
+Render-focused deployment + Colab training/export project.
+
+## Deploy on Render
+1. Keep `cattle_model_low_hw.tar.gz` in repo root.
+2. Push to GitHub.
+3. In Render: New + -> Blueprint -> select repo.
+4. Render uses `render.yaml` to deploy `uvicorn src.web_app:app --host 0.0.0.0 --port $PORT`.
+5. Open deployed URL and upload image.
+
+## Debug
+- `GET /health`
+- Optional: set `DEBUG_BUNDLE=true` and call `GET /debug/bundle`.
+
+## Train locally/colab with local dataset path
+```bash
+python colab_breed_recognition.py --mode all --dataset_dir "/Users/yourname/datasets/breeds" --work_dir .
+```
+
+
+# AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
+
 Yes — you can deploy with only `cattle_model_low_hw.tar.gz` (no separate `models/` folder needed).
 
 ## What to keep
@@ -337,6 +358,7 @@ python app.py
 
 - This implementation is strictly **software model only** (no hardware component).
 - Place the provided dataset zip at repo root as `dataset.zip` before preprocessing.
+
 
 
 
