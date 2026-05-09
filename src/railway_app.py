@@ -74,13 +74,52 @@ def get_model():
     if MODEL is None:
         bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
         MODEL, CLASSES, MODEL_META = _load_from_bundle(bundle)
+    # Support tar bundles where files may be inside subfolders (e.g., models/...)
+    model_candidates = list(tmp_dir.rglob("breed_classifier_int8.pt"))
+    classes_candidates = list(tmp_dir.rglob("class_names.json"))
+
+    if not model_candidates or not classes_candidates:
+        extracted = [str(p.relative_to(tmp_dir)) for p in tmp_dir.rglob("*") if p.is_file()]
+        raise FileNotFoundError(
+            "Bundle must contain breed_classifier_int8.pt and class_names.json. "
+            f"Extracted files: {extracted}"
+        )
+
+    model_path = model_candidates[0]
+    classes_path = classes_candidates[0]
+
+    model_path = tmp_dir / "breed_classifier_int8.pt"
+    classes_path = tmp_dir / "class_names.json"
+
+    if not model_path.exists() or not classes_path.exists():
+        raise FileNotFoundError("Bundle must contain breed_classifier_int8.pt and class_names.json")
+
+
+    with open(classes_path, "r", encoding="utf-8") as f:
+        classes = json.load(f)
+
+    base = models.efficientnet_b0(weights=None)
+    base.classifier[1] = nn.Linear(base.classifier[1].in_features, len(classes))
+    base.eval()
+    qmodel = torch.quantization.quantize_dynamic(base, {nn.Linear}, dtype=torch.qint8)
+    state = torch.load(model_path, map_location="cpu")
+    qmodel.load_state_dict(state)
+    qmodel.eval()
+    return qmodel, classes
+
+
+def get_model():
+    global MODEL, CLASSES
+    if MODEL is None:
+        bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
+        MODEL, CLASSES = _load_from_bundle(bundle)
     return MODEL, CLASSES
 
 
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
-
+    return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
 def home():
@@ -109,11 +148,11 @@ async def predict_page(
         image = Image.open(BytesIO(content)).convert("RGB")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
-
     try:
         model, classes = get_model()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
+    model, classes = get_model()
     x = TFMS(image).unsqueeze(0)
     with torch.no_grad():
         probs = torch.softmax(model(x), dim=1)[0]

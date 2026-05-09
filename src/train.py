@@ -1,15 +1,17 @@
 from pathlib import Path
 import json
-
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms, models
 from tqdm import tqdm
-
 from src.config import Paths
 from src.preprocess import resolve_breeds_root
-
+from src.config import Paths
+from src.preprocess import resolve_breeds_root
+from src.config import Paths
+from src.preprocess import resolve_breeds_root
+from src.preprocess import resolve_breeds_root
 
 def get_loaders(data_root: Path, image_size: int = 224, batch_size: int = 32):
     train_tfms = transforms.Compose([
@@ -44,9 +46,11 @@ def evaluate(model, loader, device):
             correct += (pred == y).sum().item()
             total += y.size(0)
     return correct / max(total, 1)
-
-
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
+def main(epochs: int = 8, lr: float = 1e-3):
     paths = Paths()
     paths.model_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,12 +59,11 @@ def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
         dataset_dir = input("Enter dataset directory path (train/test or breeds/train/test): ").strip()
     data_root = resolve_breeds_root(Path(dataset_dir))
     train_loader, test_loader, classes = get_loaders(data_root)
-
+    train_loader, test_loader, classes = get_loaders(paths.extracted_data)
     model = models.efficientnet_b0(weights=models.EfficientNet_B0_Weights.IMAGENET1K_V1)
     in_features = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(in_features, len(classes))
     model = model.to(device)
-
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
@@ -94,3 +97,9 @@ if __name__ == "__main__":
     import sys
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     main(dataset_dir=arg)
+    import sys
+    arg = sys.argv[1] if len(sys.argv) > 1 else ""
+    main(dataset_dir=arg)
+
+
+
