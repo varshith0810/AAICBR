@@ -118,19 +118,25 @@ def _load_from_bundle(bundle_path: Path):
     return ts_model, classes, {"type": "torchscript", "model_path": str(ts_path), "classes_path": str(classes_path)}
 
 
+def _normalize_loaded(loaded):
+    # preferred structure: (model, classes, meta)
+    if isinstance(loaded, tuple):
+        if len(loaded) == 3:
+            return loaded[0], loaded[1], loaded[2]
+        if len(loaded) == 2:
+            return loaded[0], loaded[1], {"type": "unknown"}
+    if isinstance(loaded, dict):
+        return loaded.get("model"), loaded.get("classes"), loaded.get("meta", {"type": "unknown"})
+    raise RuntimeError(f"Unexpected loader output type={type(loaded)} value={loaded}")
+
+
 def get_model():
     global MODEL, CLASSES, MODEL_META
     if MODEL is None:
         bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
         loaded = _load_from_bundle(bundle)
-        # Backward/forward compatibility for tuple shape
-        if isinstance(loaded, tuple) and len(loaded) == 3:
-            MODEL, CLASSES, MODEL_META = loaded
-        elif isinstance(loaded, tuple) and len(loaded) == 2:
-            MODEL, CLASSES = loaded
-            MODEL_META = {"type": "unknown"}
-        else:
-            raise RuntimeError(f"Unexpected model loader output: {type(loaded)}")
+        model, classes, meta = _normalize_loaded(loaded)
+        MODEL, CLASSES, MODEL_META = model, classes, meta
     return MODEL, CLASSES
 
 
@@ -183,7 +189,7 @@ async def predict_page(
     try:
         model, classes = get_model()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Model load failed: {e}. Ensure latest deployment is active.")
 
     x = TFMS(image).unsqueeze(0)
     with torch.no_grad():

@@ -91,3 +91,7 @@ To inspect bundle contents on Railway, set env var:
 `DEBUG_BUNDLE=true`
 Then open:
 `GET /debug/bundle`
+
+
+If you still see `too many values to unpack`, service is likely running an old deployment.
+Trigger **Redeploy latest commit** in Railway and verify with `/health`.
