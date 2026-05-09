@@ -24,6 +24,7 @@ TFMS = transforms.Compose([
 ])
 
 
+
 BASE_STYLE = """
 <style>
 body{font-family:Inter,Arial,sans-serif;background:linear-gradient(120deg,#f5f7ff,#eefaf6);margin:0;color:#1f2937}
@@ -81,6 +82,15 @@ def _load_from_bundle(bundle_path: Path):
         raise FileNotFoundError(f"Bundle not found: {bundle_path}")
     tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
     tmp_dir.mkdir(parents=True, exist_ok=True)
+
+def _load_from_bundle(bundle_path: Path):
+    if not bundle_path.exists():
+        raise FileNotFoundError(f"Bundle not found: {bundle_path}")
+
+    tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+
     with tarfile.open(bundle_path, "r:gz") as tar:
         tar.extractall(tmp_dir)
 
@@ -100,6 +110,7 @@ def _load_from_bundle(bundle_path: Path):
     classes_path = classes_candidates[0]
     with open(classes_path, "r", encoding="utf-8") as f:
         classes = json.load(f)
+
 
     if int8_candidates:
         model_path = int8_candidates[0]
@@ -131,6 +142,47 @@ def get_model():
             MODEL_META = {"type": "unknown"}
         else:
             raise RuntimeError(f"Unexpected model loader output: {type(loaded)}")
+
+        MODEL, CLASSES, MODEL_META = _load_from_bundle(bundle)
+    # Support tar bundles where files may be inside subfolders (e.g., models/...)
+    model_candidates = list(tmp_dir.rglob("breed_classifier_int8.pt"))
+    classes_candidates = list(tmp_dir.rglob("class_names.json"))
+
+    if not model_candidates or not classes_candidates:
+        extracted = [str(p.relative_to(tmp_dir)) for p in tmp_dir.rglob("*") if p.is_file()]
+        raise FileNotFoundError(
+            "Bundle must contain breed_classifier_int8.pt and class_names.json. "
+            f"Extracted files: {extracted}"
+        )
+
+    model_path = model_candidates[0]
+    classes_path = classes_candidates[0]
+
+    model_path = tmp_dir / "breed_classifier_int8.pt"
+    classes_path = tmp_dir / "class_names.json"
+
+    if not model_path.exists() or not classes_path.exists():
+        raise FileNotFoundError("Bundle must contain breed_classifier_int8.pt and class_names.json")
+
+
+    with open(classes_path, "r", encoding="utf-8") as f:
+        classes = json.load(f)
+
+    base = models.efficientnet_b0(weights=None)
+    base.classifier[1] = nn.Linear(base.classifier[1].in_features, len(classes))
+    base.eval()
+    qmodel = torch.quantization.quantize_dynamic(base, {nn.Linear}, dtype=torch.qint8)
+    state = torch.load(model_path, map_location="cpu")
+    qmodel.load_state_dict(state)
+    qmodel.eval()
+    return qmodel, classes
+
+
+def get_model():
+    global MODEL, CLASSES
+    if MODEL is None:
+        bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
+        MODEL, CLASSES = _load_from_bundle(bundle)
     return MODEL, CLASSES
 
 
@@ -139,9 +191,25 @@ def health():
     return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
 
 
+
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_home()
+    return {"status": "ok"}
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """
+    <html><body style='font-family:Arial;max-width:700px;margin:auto;padding:20px;'>
+    <h2>Indian Cattle & Buffalo Breed Recognition</h2>
+    <form action='/predict' method='post' enctype='multipart/form-data'>
+      <label>Upload animal image:</label><br/><input type='file' name='file' required/><br/><br/>
+      <label>Animal ID (optional):</label><br/><input type='text' name='animal_id'/><br/><br/>
+      <label>GPS Coordinates (optional):</label><br/><input type='text' name='gps_coordinates'/><br/><br/>
+      <button type='submit'>Recognize Breed</button>
+    </form>
+    </body></html>
+    """
 
 
 @app.post("/predict", response_class=HTMLResponse)
@@ -162,6 +230,8 @@ async def predict_page(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
 
+    model, classes = get_model()
+
     x = TFMS(image).unsqueeze(0)
     with torch.no_grad():
         probs = torch.softmax(model(x), dim=1)[0]
@@ -171,3 +241,16 @@ async def predict_page(
     conf = vals[0].item() * 100
     rows = "".join([f"<li>{classes[i]}: {v*100:.2f}%</li>" for v, i in zip(vals.tolist(), idxs.tolist())])
     return render_result(top, conf, animal_id, gps_coordinates, rows)
+
+
+    return f"""
+    <html><body style='font-family:Arial;max-width:700px;margin:auto;padding:20px;'>
+      <h2>Prediction Result</h2>
+      <p><b>Predicted Breed:</b> {top}</p>
+      <p><b>Confidence:</b> {conf:.2f}%</p>
+      <p><b>Animal ID:</b> {animal_id or 'N/A'}</p>
+      <p><b>GPS Coordinates:</b> {gps_coordinates or 'N/A'}</p>
+      <h3>Top-5</h3><ul>{rows}</ul>
+      <a href='/'>Try another image</a>
+    </body></html>
+    """
