@@ -10,7 +10,6 @@ Colab quick run:
 4) !python colab_breed_recognition.py --mode app --work_dir /content --dataset_dir "/content/drive/MyDrive/datasets/breeds"
 """
 
-
 import argparse
 import json
 import time
@@ -19,8 +18,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import sys
-
-
 import gradio as gr
 import torch
 import torch.nn as nn
@@ -255,7 +252,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
-
+    main(parser.parse_args())
     main(parser.parse_args())
 
 
@@ -268,4 +265,5 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
     main(args)
+
 

@@ -57,6 +57,11 @@ If `/predict` gives model bundle error, your tar likely has nested paths.
 The app now searches recursively for `breed_classifier_int8.pt` and `class_names.json` inside the extracted bundle.
 
 
+
+## Debug update
+Bundle loader now accepts either `breed_classifier_int8.pt` **or** `breed_classifier_ts.pt` plus `class_names.json`.
+If deploy still fails, verify tar contents include one model file and class map.
+
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes (Colab Training-Only)
 
 This repo is now simplified to focus on **training in Google Colab** and **exporting low-hardware model artifacts**.
@@ -295,6 +300,7 @@ python app.py
 
 - This implementation is strictly **software model only** (no hardware component).
 - Place the provided dataset zip at repo root as `dataset.zip` before preprocessing.
+
 
 
 
