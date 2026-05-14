@@ -1,3 +1,4 @@
+
 """
 Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
 Uses already-unzipped dataset folder from local computer/Colab/Drive.
@@ -10,12 +11,25 @@ Colab quick run:
 
 import argparse
 import os
+
+"""
+Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
+Uses ONLY already-unzipped dataset folder from Google Drive.
+
+Colab quick run:
+1) Mount Google Drive.
+2) !pip install -r requirements.txt
+3) !python colab_breed_recognition.py --mode all --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
+4) !python colab_breed_recognition.py --mode app --work_dir /content --dataset_dir "/content/drive/MyDrive/datasets/breeds"
+"""
+
+import argparse
 import json
 import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-
+import sys
 import gradio as gr
 import torch
 import torch.nn as nn
@@ -56,6 +70,9 @@ def resolve_breeds_root(dataset_dir: str) -> Path:
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Examples: /home/user/datasets/breeds or C:/datasets/breeds")
 
+    """Resolve dataset location from already-unzipped Google Drive folder only."""
+    if not dataset_dir:
+        raise ValueError("--dataset_dir is required. Example: /content/drive/MyDrive/datasets/breeds")
     d = Path(dataset_dir)
     if (d / "train").exists() and (d / "test").exists():
         return d
@@ -209,9 +226,8 @@ def ask_dataset_dir_if_missing(dataset_dir: str) -> str:
     if env_path:
         return env_path
     print("Enter dataset directory path on your computer (must contain train/test or breeds/train+test):")
+    print("Enter dataset directory path (must contain train/test or breeds/train+test):")
     return input().strip()
-
-
 def interactive_predict_single_image(model_dir: Path):
     model, classes, tfms, device = load_predictor(model_dir)
     print("Training completed. Enter full image path to predict breed (or press Enter to skip):")
@@ -249,8 +265,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["preprocess", "train", "app", "all"], default="all")
     parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder on local computer/Colab/Drive")
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder on local computer/Colab/Drive")
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder on local computer/Colab/Drive")
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder on local computer/Colab/Drive")
+    parser.add_argument("--dataset_dir", type=str, default="", help="Path to already-unzipped breeds folder from Google Drive")
     parser.add_argument("--work_dir", type=str, default=".")
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     main(parser.parse_args())
+    main(parser.parse_args())
+    # Check if running in an interactive environment (like Colab/Jupyter)
+    if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
+        # If running in Colab/Jupyter, parse an empty list of arguments
+        args = parser.parse_args([])
+    else:
+        # Otherwise, parse arguments from the command line
+        args = parser.parse_args()
+
+    main(args)

@@ -1,3 +1,4 @@
+
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780"><rect width="1200" height="780" fill="#eefaf6"/>
 <rect x="120" y="50" width="960" height="680" rx="18" fill="white" stroke="#d1d5db"/>
 <text x="170" y="120" font-size="30" fill="#111827">Indian Cattle &amp; Buffalo Breed Classifier</text>
@@ -7,4 +8,18 @@
 <rect x="170" y="285" width="870" height="56" fill="#fff" stroke="#9ca3af"/><text x="185" y="320" font-size="18">GPS Coordinates</text>
 <rect x="170" y="365" width="420" height="58" fill="#111827"/><text x="260" y="402" font-size="22" fill="white">Allow Camera</text>
 <rect x="620" y="365" width="420" height="58" fill="#111827"/><text x="720" y="402" font-size="22" fill="white">Predict Breed</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760">
+<rect width="1200" height="760" fill="#eefaf6"/>
+<rect x="130" y="60" width="940" height="640" rx="20" fill="white" stroke="#d1d5db"/>
+<text x="170" y="130" font-size="18" fill="#155e75">AI-Assisted Breed Recognition</text>
+<text x="170" y="175" font-size="36" fill="#111827">Indian Cattle &amp; Buffalo Breed Classifier</text>
+<text x="170" y="210" font-size="20" fill="#6b7280">Upload animal image to predict breed</text>
+<rect x="170" y="250" width="420" height="56" fill="#fff" stroke="#9ca3af"/>
+<text x="185" y="285" font-size="18" fill="#6b7280">Upload Animal Image</text>
+<rect x="620" y="250" width="420" height="56" fill="#fff" stroke="#9ca3af"/>
+<text x="635" y="285" font-size="18" fill="#6b7280">Animal ID (Optional)</text>
+<rect x="170" y="330" width="870" height="56" fill="#fff" stroke="#9ca3af"/>
+<text x="185" y="365" font-size="18" fill="#6b7280">GPS Coordinates (Optional)</text>
+<rect x="170" y="420" width="870" height="58" fill="#111827"/>
+<text x="520" y="457" font-size="24" fill="white">Predict Breed</text>
 </svg>
