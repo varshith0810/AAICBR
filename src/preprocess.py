@@ -7,10 +7,7 @@ from src.config import Paths, BREEDS
 from src.config import Paths, BREEDS
 import zipfile
 from collections import Counter
-
 from src.config import Paths, BREEDS
-
-
 def resolve_breeds_root(dataset_dir: Path) -> Path:
     if (dataset_dir / "train").exists() and (dataset_dir / "test").exists():
         return dataset_dir
@@ -19,14 +16,10 @@ def resolve_breeds_root(dataset_dir: Path) -> Path:
     raise FileNotFoundError(
         f"Invalid dataset_dir: {dataset_dir}. Expected train/test or breeds/train + breeds/test."
     )
-
-
-
 def unzip_dataset(zip_path: Path, target_dir: Path) -> None:
     target_dir.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(target_dir.parent)
-
 def validate_structure(root: Path) -> dict:
     expected_splits = ["train", "test"]
     report = {"missing_splits": [], "missing_breeds": {}, "counts": {}}
@@ -58,7 +51,6 @@ def main(dataset_dir: str = ""):
     print("Preprocessing completed.")
     print(report)
 
-
     print("Preprocessing completed.")
     print(report)
 def main(dataset_dir: str = ""):
@@ -74,7 +66,6 @@ def main():
     report = validate_structure(paths.extracted_data)
     print("Preprocessing completed.")
     print(report)
-
 
 if __name__ == "__main__":
     # Example: python -m src.preprocess /content/drive/MyDrive/datasets/breeds

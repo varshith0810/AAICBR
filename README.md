@@ -27,7 +27,15 @@ python colab_breed_recognition.py --mode all --dataset_dir "/Users/yourname/data
   - `APP_USERNAME` (default: `admin`)
   - `APP_PASSWORD` (default: `admin123`)
 - Browser camera permission is requested with **Allow Camera** button.
+## Email notification (optional)
+Set these env vars to send result email from the web app:
+- `SMTP_HOST`
+- `SMTP_PORT` (default `587`)
+- `SMTP_USER`
+- `SMTP_PASS`
+- `FROM_EMAIL`
 
+In prediction form, user can optionally enter email to receive result.
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
 
 Yes — you can deploy with only `cattle_model_low_hw.tar.gz` (no separate `models/` folder needed).
@@ -127,7 +135,6 @@ Then open:
 
 If you still see `too many values to unpack`, service is likely running an old deployment.
 Trigger **Redeploy latest commit** in Railway and verify with `/health`.
-=======
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes (Colab Training-Only)
 
 This repo is now simplified to focus on **training in Google Colab** and **exporting low-hardware model artifacts**.
@@ -357,19 +364,9 @@ python -m src.preprocess
 python -m src.train
 python app.py
 ```
-
 ## Notes
-
 - Software-only model.
 - App asks user to upload image.
-
-
 - This implementation is strictly **software model only** (no hardware component).
 - Place the provided dataset zip at repo root as `dataset.zip` before preprocessing.
-
-
-
-
-
-
 
