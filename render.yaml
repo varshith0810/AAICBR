@@ -4,6 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
     startCommand: uvicorn src.web_app:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: MODEL_BUNDLE

@@ -69,7 +69,6 @@ def resolve_breeds_root(dataset_dir: str) -> Path:
     """Resolve dataset location from any already-unzipped local/computer folder."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Examples: /home/user/datasets/breeds or C:/datasets/breeds")
-
     """Resolve dataset location from already-unzipped Google Drive folder only."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Example: /content/drive/MyDrive/datasets/breeds")
@@ -226,6 +225,7 @@ def ask_dataset_dir_if_missing(dataset_dir: str) -> str:
     if env_path:
         return env_path
     print("Enter dataset directory path on your computer (must contain train/test or breeds/train+test):")
+    return input().strip()
     print("Enter dataset directory path (must contain train/test or breeds/train+test):")
     return input().strip()
 def interactive_predict_single_image(model_dir: Path):
@@ -239,14 +239,11 @@ def interactive_predict_single_image(model_dir: Path):
     out, _ = predict_with_fields(img, "", "", model, classes, tfms, device)
     print("Prediction output:")
     print(json.dumps(out, indent=2))
-
-
 def main(args):
     work_dir = Path(args.work_dir)
     model_dir = work_dir / "models"
     dataset_dir = ask_dataset_dir_if_missing(args.dataset_dir)
     breeds_root = resolve_breeds_root(dataset_dir)
-
     if args.mode in {"preprocess", "all"}:
         report = validate_structure(breeds_root)
         print("Validation report:")
@@ -274,6 +271,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     main(parser.parse_args())
+
     main(parser.parse_args())
     # Check if running in an interactive environment (like Colab/Jupyter)
     if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
