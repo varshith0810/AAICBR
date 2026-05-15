@@ -23,6 +23,8 @@ from src.config import Paths
 from src.preprocess import resolve_breeds_root
 from src.config import Paths
 from src.preprocess import resolve_breeds_root
+from src.config import Paths
+from src.preprocess import resolve_breeds_root
 from src.preprocess import resolve_breeds_root
 def get_loaders(data_root: Path, image_size: int = 224, batch_size: int = 32):
     train_tfms = transforms.Compose([
@@ -64,11 +66,11 @@ def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3):
     paths = Paths()
     paths.model_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     if not dataset_dir:
         dataset_dir = input("Enter dataset directory path (train/test or breeds/train/test): ").strip()
     data_root = resolve_breeds_root(Path(dataset_dir))
@@ -92,7 +94,6 @@ def main(epochs: int = 8, lr: float = 1e-3):
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-
         val_acc = evaluate(model, test_loader, device)
         avg_loss = running_loss / max(len(train_loader), 1)
         print(f"epoch={epoch+1} loss={avg_loss:.4f} val_acc={val_acc:.4f}")
@@ -100,17 +101,13 @@ def main(epochs: int = 8, lr: float = 1e-3):
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), paths.model_dir / "breed_classifier.pt")
-
     with open(paths.model_dir / "class_names.json", "w", encoding="utf-8") as f:
         json.dump(classes, f)
     print(f"Training done. Best validation accuracy: {best_acc:.4f}")
-
 if __name__ == "__main__":
     import sys
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     main(dataset_dir=arg)
-    import sys
-    arg = sys.argv[1] if len(sys.argv) > 1 else ""
-    main(dataset_dir=arg)
+   
 
 

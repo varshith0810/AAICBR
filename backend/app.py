@@ -9,7 +9,6 @@ import smtplib
 from io import BytesIO
 from pathlib import Path
 from email.message import EmailMessage
-
 import torch
 import torch.nn as nn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -17,21 +16,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from PIL import Image
 from starlette.middleware.sessions import SessionMiddleware
 from torchvision import models, transforms
-
 from backend.db import init_db, get_conn
-
 app = FastAPI(title="Cattle Breed Recognition Frontend + API")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "change-me-please"))
-
-
 def _hash_password(password: str) -> str:
     return hashlib.sha256(password.encode("utf-8")).hexdigest()
-
-
 def _verify_password(raw_password: str, stored_password_hash: str) -> bool:
     expected = _hash_password(raw_password)
     return hmac.compare_digest(expected, stored_password_hash)
-
 
 @app.on_event("startup")
 def startup():
@@ -75,8 +67,6 @@ video{width:100%;max-width:420px;border-radius:12px;border:1px solid #d1d5db}.ro
 @media(max-width:768px){.grid{grid-template-columns:1fr}.row{flex-direction:column;align-items:stretch}}
 </style>
 """
-
-
 def render_login(error: str = ""):
     err = f"<p class='error'>{error}</p>" if error else ""
     return f"""<html><head>{BASE_STYLE}</head><body><div class='container'><div class='card'>
@@ -85,9 +75,21 @@ def render_login(error: str = ""):
       <label>Username</label><input type='text' name='username' required>
       <label style='margin-top:10px;display:block'>Password</label><input type='password' name='password' required>
       <div style='margin-top:16px'><button type='submit'>Login</button></div>
+    </form>
+    <p style='margin-top:12px'>New user? <a href='/signup'>Create an account</a></p>
+    </div></div></body></html>"""
+def render_signup(error: str = ""):
+    err = f"<p class='error'>{error}</p>" if error else ""
+    return f"""<html><head>{BASE_STYLE}</head><body><div class='container'><div class='card'>
+    <div class='badge'>Create Account</div><div class='title'>Sign up</div><div class='subtitle'>Register to use breed recognition.</div>{err}
+    <form action='/signup' method='post'>
+      <label>Username</label><input type='text' name='username' minlength='3' required>
+      <label style='margin-top:10px;display:block'>Password</label><input type='password' name='password' minlength='6' required>
+      <div style='margin-top:16px'><button type='submit'>Create Account</button></div>
+    </form>
+    <p style='margin-top:12px'>Already have an account? <a href='/'>Sign in</a></p>
+    </div></div></body></html>"""
     </form></div></div></body></html>"""
-
-
 def render_home(user: str):
     return f"""<html><head>{BASE_STYLE}</head><body><div class='container'><div class='card'>
     <div class='row'><div><div class='badge'>Welcome, {user}</div><div class='title'>Indian Cattle & Buffalo Breed Classifier</div></div>
@@ -127,8 +129,6 @@ def render_home(user: str):
       }}
     </script>
     </body></html>"""
-
-
 def send_prediction_email(to_email: str, result: dict):
     host = os.getenv("SMTP_HOST", "")
     port = int(os.getenv("SMTP_PORT", "587"))
@@ -159,8 +159,6 @@ def send_prediction_email(to_email: str, result: dict):
         return {"sent": True}
     except Exception as e:
         return {"sent": False, "reason": str(e)}
-
-
 def render_result(top, conf, animal_id, gps_coordinates, rows, email_status=""):
     return f"""<html><head>{BASE_STYLE}</head><body><div class='container'><div class='card'>
     <div class='badge'>Prediction Complete</div><div class='title'>Breed Recognition Result</div>
@@ -168,8 +166,6 @@ def render_result(top, conf, animal_id, gps_coordinates, rows, email_status=""):
     <p><b>Animal ID:</b> {animal_id or 'N/A'}</p><p><b>GPS Coordinates:</b> {gps_coordinates or 'N/A'}</p><h4>Top-5 Scores</h4><ul>{rows}</ul></div>
     <div style='margin-top:16px'><a href='/'><button>Try Another Image</button></a></div>
     </div></div></body></html>"""
-
-
 def _safe_extract_tar(tar: tarfile.TarFile, target_dir: Path):
     target_dir = target_dir.resolve()
     for member in tar.getmembers():
@@ -177,8 +173,6 @@ def _safe_extract_tar(tar: tarfile.TarFile, target_dir: Path):
         if not str(member_path).startswith(str(target_dir)):
             raise ValueError(f"Unsafe tar path detected: {member.name}")
     tar.extractall(target_dir)
-
-
 def _load_from_bundle(bundle_path: Path):
     if not bundle_path.exists():
         raise FileNotFoundError(f"Bundle not found: {bundle_path}")
@@ -203,8 +197,6 @@ def _load_from_bundle(bundle_path: Path):
         return qmodel.eval(), classes, {"type": "int8"}
     model = torch.jit.load(str(ts_candidates[0]), map_location="cpu").eval()
     return model, classes, {"type": "torchscript"}
-
-
 def _normalize_loaded(loaded):
     if isinstance(loaded, tuple):
         if len(loaded) == 3:
@@ -214,37 +206,27 @@ def _normalize_loaded(loaded):
     if isinstance(loaded, dict):
         return loaded.get("model"), loaded.get("classes"), loaded.get("meta", {"type": "unknown"})
     raise RuntimeError(f"Unexpected loader output: {type(loaded)}")
-
-
 def get_model():
     global MODEL, CLASSES, MODEL_META
     if MODEL is None:
         loaded = _load_from_bundle(Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz")))
         MODEL, CLASSES, MODEL_META = _normalize_loaded(loaded)
     return MODEL, CLASSES
-
-
 @app.get("/health")
 def health():
     return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
-
-
 @app.get("/debug/bundle")
 def debug_bundle():
     if os.getenv("DEBUG_BUNDLE", "false").lower() != "true":
         raise HTTPException(status_code=403, detail="Enable DEBUG_BUNDLE=true")
     bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
     return {"bundle_path": str(bundle), "exists": bundle.exists()}
-
-
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     user = request.session.get("user")
     if not user:
         return render_login()
     return render_home(user)
-
-
 @app.post("/login", response_class=HTMLResponse)
 def login(request: Request, username: str = Form(...), password: str = Form(...)):
     conn = get_conn()
@@ -255,14 +237,30 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
         request.session["user_id"] = row["id"]
         return RedirectResponse(url='/', status_code=303)
     return render_login("Invalid credentials")
-
-
+@app.get("/signup", response_class=HTMLResponse)
+def signup_page():
+    return render_signup()
+@app.post("/signup", response_class=HTMLResponse)
+def signup(username: str = Form(...), password: str = Form(...)):
+    username = username.strip()
+    if len(username) < 3:
+        return render_signup("Username must be at least 3 characters")
+    if len(password) < 6:
+        return render_signup("Password must be at least 6 characters")
+    conn = get_conn()
+    existing = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+    if existing:
+        conn.close()
+        return render_signup("Username already exists")
+    password_hash = _hash_password(password)
+    conn.execute("INSERT INTO users (username, password_hash, role) VALUES (?,?,?)", (username, password_hash, "user"))
+    conn.commit()
+    conn.close()
+    return RedirectResponse(url='/', status_code=303)
 @app.get("/logout")
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url='/', status_code=303)
-
-
 @app.post("/predict", response_class=HTMLResponse)
 async def predict_page(
     request: Request,
@@ -321,10 +319,7 @@ async def predict_page(
     )
     conn.commit()
     conn.close()
-
     return render_result(top, conf, animal_id, gps_coordinates, rows, email_status=email_html)
-
-
 @app.get("/history", response_class=HTMLResponse)
 def history(request: Request):
     if "user" not in request.session:

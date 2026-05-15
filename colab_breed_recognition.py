@@ -11,7 +11,6 @@ Colab quick run:
 
 import argparse
 import os
-
 """
 Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
 Uses ONLY already-unzipped dataset folder from Google Drive.
@@ -47,7 +46,6 @@ BREEDS = [
     "ayrshire", "amritmahal", "alambadi"
 ]
 
-
 def validate_structure(breeds_root: Path) -> dict:
     report = {"missing_splits": [], "missing_breeds": {}, "counts": {}}
     for split in ["train", "test"]:
@@ -73,6 +71,7 @@ def resolve_breeds_root(dataset_dir: str) -> Path:
     """Resolve dataset location from already-unzipped Google Drive folder only."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Example: /content/drive/MyDrive/datasets/breeds")
+
 
     d = Path(dataset_dir)
     if (d / "train").exists() and (d / "test").exists():
@@ -278,4 +277,3 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
     main(args)
-
