@@ -21,8 +21,9 @@ from src.config import Paths
 from src.preprocess import resolve_breeds_root
 from src.config import Paths
 from src.preprocess import resolve_breeds_root
+from src.config import Paths
 from src.preprocess import resolve_breeds_root
-
+from src.preprocess import resolve_breeds_root
 def get_loaders(data_root: Path, image_size: int = 224, batch_size: int = 32):
     train_tfms = transforms.Compose([
         transforms.Resize((image_size, image_size)),
@@ -43,7 +44,6 @@ def get_loaders(data_root: Path, image_size: int = 224, batch_size: int = 32):
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=2)
     test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=2)
     return train_loader, test_loader, train_ds.classes
-
 def evaluate(model, loader, device):
     model.eval()
     correct, total = 0, 0
@@ -55,6 +55,7 @@ def evaluate(model, loader, device):
             correct += (pred == y).sum().item()
             total += y.size(0)
     return correct / max(total, 1)
+def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
 def main(epochs: int = 8, lr: float = 1e-3, dataset_dir: str = ""):
@@ -77,8 +78,6 @@ def main(epochs: int = 8, lr: float = 1e-3):
     in_features = model.classifier[1].in_features
     model.classifier[1] = nn.Linear(in_features, len(classes))
     model = model.to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     best_acc = 0.0
@@ -113,4 +112,5 @@ if __name__ == "__main__":
     import sys
     arg = sys.argv[1] if len(sys.argv) > 1 else ""
     main(dataset_dir=arg)
+
 

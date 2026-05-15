@@ -25,7 +25,6 @@ Start command:
 - Email notification (optional SMTP)
 - Prediction history page: `/history`
 
-
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
 
 Render-focused deployment + Colab training/export project.
@@ -396,4 +395,3 @@ python app.py
 - App asks user to upload image.
 - This implementation is strictly **software model only** (no hardware component).
 - Place the provided dataset zip at repo root as `dataset.zip` before preprocessing.
-

@@ -1,3 +1,15 @@
+"""Render entrypoint compatibility module.
+
+Some deploy environments are configured to run:
+    uvicorn src.web_app:app
+
+This module re-exports the FastAPI application from backend.app so both
+`backend.app:app` and `src.web_app:app` work.
+"""
+
+from backend.app import app
+
+__all__ = ["app"]
 import base64
 import base64
 import json
@@ -389,4 +401,5 @@ async def predict_page(
             email_html = f"<p><b>Email Notification:</b> Failed ({email_result.get('reason','unknown')}).</p>"
     return render_result(top, conf, animal_id, gps_coordinates, rows, email_status=email_html)
     return render_result(top, conf, animal_id, gps_coordinates, rows)
+
 
