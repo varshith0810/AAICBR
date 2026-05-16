@@ -1,3 +1,4 @@
+
 """
 Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
 Uses already-unzipped dataset folder from local computer/Colab/Drive.
@@ -10,12 +11,24 @@ Colab quick run:
 
 import argparse
 import os
+"""
+Single-file Google Colab pipeline for Indian cattle & buffalo breed recognition.
+Uses ONLY already-unzipped dataset folder from Google Drive.
+
+Colab quick run:
+1) Mount Google Drive.
+2) !pip install -r requirements.txt
+3) !python colab_breed_recognition.py --mode all --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
+4) !python colab_breed_recognition.py --mode app --work_dir /content --dataset_dir "/content/drive/MyDrive/datasets/breeds"
+"""
+
+import argparse
 import json
 import time
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-
+import sys
 import gradio as gr
 import torch
 import torch.nn as nn
@@ -23,7 +36,6 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision import datasets, models, transforms
 from tqdm import tqdm
-
 BREEDS = [
     "vechur", "umblachery", "toda", "tharparkar", "surti", "sahiwal", "redsindhi", "reddane",
     "rathi", "pulikulam", "ongole", "nimari", "niliravi", "nagpuri", "nagori", "murrah",
@@ -32,7 +44,6 @@ BREEDS = [
     "guernsey", "gir", "deoni", "dangi", "brownswiss", "bhadawari", "bargur", "banni",
     "ayrshire", "amritmahal", "alambadi"
 ]
-
 
 def validate_structure(breeds_root: Path) -> dict:
     report = {"missing_splits": [], "missing_breeds": {}, "counts": {}}
@@ -55,7 +66,9 @@ def resolve_breeds_root(dataset_dir: str) -> Path:
     """Resolve dataset location from any already-unzipped local/computer folder."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Examples: /home/user/datasets/breeds or C:/datasets/breeds")
-
+    """Resolve dataset location from already-unzipped Google Drive folder only."""
+    if not dataset_dir:
+        raise ValueError("--dataset_dir is required. Example: /content/drive/MyDrive/datasets/breeds")
     d = Path(dataset_dir)
     if (d / "train").exists() and (d / "test").exists():
         return d
@@ -210,8 +223,8 @@ def ask_dataset_dir_if_missing(dataset_dir: str) -> str:
         return env_path
     print("Enter dataset directory path on your computer (must contain train/test or breeds/train+test):")
     return input().strip()
-
-
+    print("Enter dataset directory path (must contain train/test or breeds/train+test):")
+    return input().strip()
 def interactive_predict_single_image(model_dir: Path):
     model, classes, tfms, device = load_predictor(model_dir)
     print("Training completed. Enter full image path to predict breed (or press Enter to skip):")
@@ -223,14 +236,11 @@ def interactive_predict_single_image(model_dir: Path):
     out, _ = predict_with_fields(img, "", "", model, classes, tfms, device)
     print("Prediction output:")
     print(json.dumps(out, indent=2))
-
-
 def main(args):
     work_dir = Path(args.work_dir)
     model_dir = work_dir / "models"
     dataset_dir = ask_dataset_dir_if_missing(args.dataset_dir)
     breeds_root = resolve_breeds_root(dataset_dir)
-
     if args.mode in {"preprocess", "all"}:
         report = validate_structure(breeds_root)
         print("Validation report:")
@@ -254,3 +264,13 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-3)
     main(parser.parse_args())
+    # Check if running in an interactive environment (like Colab/Jupyter)
+    if 'ipykernel' in sys.modules or 'google.colab' in sys.modules:
+        # If running in Colab/Jupyter, parse an empty list of arguments
+        args = parser.parse_args([])
+    else:
+        # Otherwise, parse arguments from the command line
+        args = parser.parse_args()
+
+    main(args)
+
