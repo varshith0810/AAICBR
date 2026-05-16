@@ -23,12 +23,19 @@ app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "ch
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def _hash_password(password: str) -> str:
     return pwd_context.hash(password)
+from backend.db import init_db, get_conn
+app = FastAPI(title="Cattle Breed Recognition Frontend + API")
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "change-me-please"))
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def _hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 def _verify_password(raw_password: str, stored_password_hash: str) -> bool:
     if stored_password_hash.startswith("$2"):
         return pwd_context.verify(raw_password, stored_password_hash)
     # Backward compatibility for legacy sha256 records.
     expected = hashlib.sha256(raw_password.encode("utf-8")).hexdigest()
     return hmac.compare_digest(expected, stored_password_hash)
+
 from backend.db import init_db, get_conn
 app = FastAPI(title="Cattle Breed Recognition Frontend + API")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "change-me-please"))
@@ -148,6 +155,8 @@ def send_prediction_email(to_email: str, result: dict):
     from_email = os.getenv("FROM_EMAIL", user)
     if not (host and from_email and to_email):
         return {"sent": False, "reason": "SMTP not configured or recipient missing"}
+    if not (host and from_email and to_email):
+        return {"sent": False, "reason": "SMTP not configured or recipient missing"}
     msg = EmailMessage()
     msg["Subject"] = "Breed Prediction Result"
     msg["From"] = from_email
@@ -206,6 +215,7 @@ def _load_from_bundle(bundle_path: Path):
         return qmodel.eval(), classes, {"type": "int8"}
     model = torch.jit.load(str(ts_candidates[0]), map_location="cpu").eval()
     return model, classes, {"type": "torchscript"}
+
 def _normalize_loaded(loaded):
     if isinstance(loaded, tuple):
         if len(loaded) == 3:
@@ -221,13 +231,16 @@ def get_model():
         loaded = _load_from_bundle(Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz")))
         MODEL, CLASSES, MODEL_META = _normalize_loaded(loaded)
     return MODEL, CLASSES
-@app.get("/health")
-def health():
-    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
-@app.get("/health")
-def health():
-    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
 
+@app.get("/health")
+def health():
+    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
+@app.get("/health")
+def health():
+    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
+@app.get("/health")
+def health():
+    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
 @app.get("/debug/bundle")
 def debug_bundle():
     if os.getenv("DEBUG_BUNDLE", "false").lower() != "true":
@@ -274,7 +287,6 @@ def signup(username: str = Form(...), password: str = Form(...)):
     conn.commit()
     conn.close()
     return RedirectResponse(url='/', status_code=303)
-
 @app.get("/logout")
 def logout(request: Request):
     request.session.clear()
@@ -337,7 +349,6 @@ async def predict_page(
     )
     conn.commit()
     conn.close()
-    return render_result(top, conf, animal_id, gps_coordinates, rows, email_status=email_html)
     return render_result(top, conf, animal_id, gps_coordinates, rows, email_status=email_html)
 @app.get("/history", response_class=HTMLResponse)
 def history(request: Request):
