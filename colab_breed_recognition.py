@@ -36,7 +36,6 @@ from PIL import Image
 from torch.utils.data import DataLoader
 from torchvision import datasets, models, transforms
 from tqdm import tqdm
-
 BREEDS = [
     "vechur", "umblachery", "toda", "tharparkar", "surti", "sahiwal", "redsindhi", "reddane",
     "rathi", "pulikulam", "ongole", "nimari", "niliravi", "nagpuri", "nagori", "murrah",
@@ -67,12 +66,9 @@ def resolve_breeds_root(dataset_dir: str) -> Path:
     """Resolve dataset location from any already-unzipped local/computer folder."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Examples: /home/user/datasets/breeds or C:/datasets/breeds")
-
     """Resolve dataset location from already-unzipped Google Drive folder only."""
     if not dataset_dir:
         raise ValueError("--dataset_dir is required. Example: /content/drive/MyDrive/datasets/breeds")
-
-
     d = Path(dataset_dir)
     if (d / "train").exists() and (d / "test").exists():
         return d
@@ -277,3 +273,4 @@ if __name__ == "__main__":
         args = parser.parse_args()
 
     main(args)
+
