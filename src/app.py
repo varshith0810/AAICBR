@@ -31,7 +31,19 @@ TFMS = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
 ])
 
-BASE_STYLE = """<style>body{font-family:Inter,Arial,sans-serif;background:#0b1020;color:#e5e7eb;margin:0}.shell{max-width:1100px;margin:0 auto;padding:24px}.card{background:#121a31;border:1px solid #263252;border-radius:16px;padding:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.nav a{color:#c7d2fe;text-decoration:none;margin-right:10px}.result{background:#f8fafc;color:#0f172a;border-radius:12px;padding:12px}.img-preview{max-width:360px;width:100%;border-radius:12px;border:1px solid #cbd5e1}input,button{width:100%;padding:10px;border-radius:10px;border:1px solid #334155}button{background:#6366f1;color:#fff;border:none}.muted{color:#94a3b8}@media(max-width:900px){.grid{grid-template-columns:1fr}}</style>"""
+BASE_STYLE = """<style>
+body{font-family:Inter,Arial,sans-serif;background:#0b1020;color:#e5e7eb;margin:0}
+.shell{max-width:1100px;margin:0 auto;padding:24px}
+.card{background:#121a31;border:1px solid #263252;border-radius:16px;padding:20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.nav a{color:#c7d2fe;text-decoration:none;margin-right:10px}
+.result{background:#f8fafc;color:#0f172a;border-radius:12px;padding:12px}
+.img-preview{max-width:360px;width:100%;border-radius:12px;border:1px solid #cbd5e1}
+input,button{width:100%;padding:10px;border-radius:10px;border:1px solid #334155}
+button{background:#6366f1;color:#fff;border:none}
+.muted{color:#94a3b8}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+</style>"""
 
 
 def _current_user(request: Request) -> str | None:
@@ -138,6 +150,7 @@ def resolve_location_label(gps_coordinates: str) -> str:
 def _load_from_bundle(bundle_path: Path):
     if not bundle_path.exists():
         raise FileNotFoundError(f"Bundle not found: {bundle_path}")
+
     tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     with tarfile.open(bundle_path, "r:gz") as tar:
@@ -152,6 +165,7 @@ def _load_from_bundle(bundle_path: Path):
 
     with open(classes_candidates[0], "r", encoding="utf-8") as f:
         classes = json.load(f)
+
     if int8_candidates:
         model_path = int8_candidates[0]
         base = models.efficientnet_b0(weights=None)
