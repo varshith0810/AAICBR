@@ -184,7 +184,6 @@ def render_create_account(message: str = ""):
     """
     return page_template(content, active="create")
 
-
 def render_result(top, conf, animal_id, gps_coordinates, rows):
     content = f"""
     <div class='auth-wrap' style='max-width:860px'>
@@ -206,7 +205,6 @@ def render_result(top, conf, animal_id, gps_coordinates, rows):
     </div>
     """
     return page_template(content, active="home")
-
 
 def _load_from_bundle(bundle_path: Path):
     if not bundle_path.exists():
@@ -303,8 +301,6 @@ def debug_bundle():
 @app.get("/", response_class=HTMLResponse)
 def home():
     return render_home()
-
-
 @app.get("/signin", response_class=HTMLResponse)
 def signin_page():
     return render_signin()
@@ -327,8 +323,6 @@ async def create_account(email: str = Form(...), username: str = Form(...), pass
     if not email.strip() or not username.strip() or not password.strip():
         raise HTTPException(status_code=400, detail="Email, username, and password are required.")
     return render_signin(message=f"Account created for {username}. Please sign in.")
-
-
 @app.post("/predict", response_class=HTMLResponse)
 async def predict_page(
     request: Request,
