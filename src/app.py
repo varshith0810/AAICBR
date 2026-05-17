@@ -133,6 +133,7 @@ def resolve_location_label(gps_coordinates: str) -> str:
         return data.get("display_name", gps)
     except Exception:
         return f"{gps} (location lookup unavailable)"
+
 BASE_STYLE = """
 <style>
 :root {
@@ -207,7 +208,6 @@ def page_template(content: str, active: str = "home") -> str:
       {content}
       <div class='footer'>Designed for farmers, vets, and breeding centers • Modern AI-assisted workflow.</div>
     </div></body></html>"""
-
 
 def render_home():
     content = """
@@ -377,6 +377,18 @@ def get_model():
     if MODEL is None:
         bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
         MODEL, CLASSES, MODEL_META = _normalize_loaded(_load_from_bundle(bundle))
+   return MODEL, CLASSES
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return render_home(request)
+
     return MODEL, CLASSES
 
 
@@ -407,10 +419,10 @@ def inspect_bundle_files():
 
     info["files"] = sorted(str(p.relative_to(tmp_dir)) for p in tmp_dir.rglob("*") if p.is_file())
     return info
-
 @app.get("/signin", response_class=HTMLResponse)
 def signin_page(request: Request):
     return render_signin(request)
+
 @app.post("/signin")
 async def signin(request: Request, identity: str = Form(...), password: str = Form(...)):
     stored = USERS.get(identity.strip().lower())
@@ -418,6 +430,10 @@ async def signin(request: Request, identity: str = Form(...), password: str = Fo
         return HTMLResponse(render_signin(request, "Invalid credentials"), status_code=401)
     request.session["user"] = stored["username"]
     return RedirectResponse(url="/", status_code=303)
+@app.get("/create-account", response_class=HTMLResponse)
+def create_account_page(request: Request):
+    return render_create_account(request)
+
 @app.get("/create-account", response_class=HTMLResponse)
 def create_account_page(request: Request):
     return render_create_account(request)
@@ -432,6 +448,7 @@ async def create_account(request: Request, email: str = Form(...), username: str
 def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/signin", status_code=303)
+
 @app.get("/debug/bundle")
 def debug_bundle():
     if os.getenv("DEBUG_BUNDLE", "false").lower() != "true":
@@ -483,8 +500,8 @@ async def predict_page(
     try:
         model, classes = get_model()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Model load failed: {e}")
         raise HTTPException(status_code=500, detail=f"Model load failed: {e}. Ensure latest deployment is active.")
+
     x = TFMS(image).unsqueeze(0)
     with torch.no_grad():
         probs = torch.softmax(model(x), dim=1)[0]
@@ -495,4 +512,4 @@ async def predict_page(
     location_label = resolve_location_label(gps_coordinates)
     image_b64 = base64.b64encode(content).decode("utf-8")
     return render_result(request, top, conf, animal_id, location_label, rows, image_b64)
- 
+
