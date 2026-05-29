@@ -1,12 +1,15 @@
 import base64
+import html
 import json
 import os
 import tarfile
 import tempfile
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 import torch
 import torch.nn as nn
@@ -16,471 +19,393 @@ from PIL import Image
 from starlette.middleware.sessions import SessionMiddleware
 from torchvision import models, transforms
 
-app = FastAPI(title="Cattle Breed Recognition Frontend + API")
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "change-me"))
+APP_TITLE = "Cattle Breed Recognition Frontend + API"
+DEFAULT_MODEL_BUNDLE = "cattle_model_low_hw.tar.gz"
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
+DEBUG_BUNDLE_FLAG = "DEBUG_BUNDLE"
 
-MODEL = None
-CLASSES = None
-MODEL_META = None
-USERS = {}
-TFMS = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-])
+app = FastAPI(title=APP_TITLE)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 
-BASE_STYLE = """<style>body{font-family:Inter,Arial,sans-serif;background:#0b1020;color:#e5e7eb;margin:0}.shell{max-width:1100px;margin:0 auto;padding:24px}.card{background:#121a31;border:1px solid #263252;border-radius:16px;padding:20px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.nav a{color:#c7d2fe;text-decoration:none;margin-right:10px}.result{background:#f8fafc;color:#0f172a;border-radius:12px;padding:12px}.img-preview{max-width:360px;width:100%;border-radius:12px;border:1px solid #cbd5e1}input,button{width:100%;padding:10px;border-radius:10px;border:1px solid #334155}button{background:#6366f1;color:#fff;border:none}.muted{color:#94a3b8}@media(max-width:900px){.grid{grid-template-columns:1fr}}</style>"""
+MODEL: torch.nn.Module | None = None
+CLASSES: list[str] | None = None
+MODEL_META: dict[str, Any] | None = None
+USERS: dict[str, dict[str, str]] = {}
+
+TFMS = transforms.Compose(
+    [
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ]
+)
+
+BASE_STYLE = """
+<style>
+  body{font-family:Inter,Arial,sans-serif;background:#0b1020;color:#e5e7eb;margin:0}
+  .shell{max-width:1100px;margin:0 auto;padding:24px}
+  .card{background:#121a31;border:1px solid #263252;border-radius:16px;padding:20px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .nav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+  .nav a{color:#c7d2fe;text-decoration:none;margin-right:10px}
+  .result{background:#f8fafc;color:#0f172a;border-radius:12px;padding:12px}
+  .img-preview{max-width:360px;width:100%;border-radius:12px;border:1px solid #cbd5e1}
+  input,button{width:100%;padding:10px;border-radius:10px;border:1px solid #334155;box-sizing:border-box}
+  button{background:#6366f1;color:#fff;border:none;cursor:pointer;font-weight:700}
+  label{display:block;margin-bottom:6px}
+  .muted{color:#94a3b8}
+  .flash{padding:10px 12px;border-radius:10px;margin-bottom:12px;background:#1f2937;color:#e5e7eb}
+  .flash.error{background:#7f1d1d;color:#fee2e2}
+  @media(max-width:900px){.grid{grid-template-columns:1fr}}
+</style>
+"""
 
 
-def _current_user(request: Request):
-    return request.session.get("user")
+@dataclass(frozen=True)
+class PredictionResult:
+    breed: str
+    confidence: float
+    rows_html: str
+
+
+def _escape(value: object) -> str:
+    return html.escape(str(value), quote=True)
+
+
+def _current_user(request: Request) -> str | None:
+    user = request.session.get("user")
+    return str(user) if user else None
+
+
+def _normalize_identity(identity: str) -> str:
+    return identity.strip().lower()
+
+
+def _model_bundle_path() -> Path:
+    return Path(os.getenv("MODEL_BUNDLE", DEFAULT_MODEL_BUNDLE))
+
+
+def _flash_html(message: str, *, is_error: bool = False) -> str:
+    if not message:
+        return ""
+    css_class = "flash error" if is_error else "flash"
+    return f"<div class='{css_class}'>{_escape(message)}</div>"
 
 
 def page_template(content: str, request: Request) -> str:
     user = _current_user(request)
     auth_links = "<a href='/logout'>Logout</a>" if user else "<a href='/signin'>Sign In</a> <a href='/create-account'>Create Account</a>"
-    return f"""<html><head><meta name='viewport' content='width=device-width, initial-scale=1'>{BASE_STYLE}</head><body><div class='shell'>
-    <div class='nav'><a href='/'>Home</a>{auth_links}</div>
-    {content}</div></body></html>"""
+    signed_in = f"<span class='muted'>Signed in as {_escape(user)}</span>" if user else ""
+    return f"""<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <title>{_escape(APP_TITLE)}</title>
+  {BASE_STYLE}
+</head>
+<body>
+  <main class='shell'>
+    <nav class='nav'><a href='/'>Home</a>{auth_links}{signed_in}</nav>
+    {content}
+  </main>
+</body>
+</html>"""
 
 
 def render_home(request: Request):
-    user = _current_user(request)
-    if not user:
+    if not _current_user(request):
         return RedirectResponse(url="/signin", status_code=303)
+
     content = """
-    <div class='card'><h2>Indian Cattle & Buffalo Breed Classifier</h2>
-    <p class='muted'>Prediction is available only after sign in.</p>
-    <form action='/predict' method='post' enctype='multipart/form-data'>
-      <div class='grid'>
-        <div><label>Upload Animal Image</label><input type='file' name='file' required></div>
-        <div><label>Animal ID (optional)</label><input type='text' name='animal_id'></div>
+    <section class='card'>
+      <h2>Indian Cattle & Buffalo Breed Classifier</h2>
+      <p class='muted'>Prediction is available only after sign in.</p>
+      <form action='/predict' method='post' enctype='multipart/form-data'>
+        <div class='grid'>
+          <div><label>Upload Animal Image</label><input type='file' name='file' accept='image/*' required></div>
+          <div><label>Animal ID (optional)</label><input type='text' name='animal_id' placeholder='COW-2026-001'></div>
+        </div>
+        <div style='margin-top:10px'>
+          <label>GPS Coordinates (lat,long)</label>
+          <input type='text' name='gps_coordinates' placeholder='30.8717,75.8520'>
+        </div>
+        <div style='margin-top:12px'><button type='submit'>Predict Breed</button></div>
+      </form>
+    </section>"""
+    return HTMLResponse(page_template(content, request))
+
+
+def render_signin(request: Request, message: str = "", *, is_error: bool = False) -> str:
+    content = f"""
+    <section class='card'>
+      <h2>Sign In</h2>
+      {_flash_html(message, is_error=is_error)}
+      <form action='/signin' method='post'>
+        <label>Email or Username</label><input name='identity' required>
+        <label style='margin-top:8px'>Password</label><input type='password' name='password' required>
+        <div style='margin-top:12px'><button type='submit'>Sign In</button></div>
+      </form>
+      <p>New user? <a href='/create-account'>Create account</a></p>
+    </section>"""
+    return page_template(content, request)
+
+
+def render_create_account(request: Request, message: str = "", *, is_error: bool = False) -> str:
+    content = f"""
+    <section class='card'>
+      <h2>Create Account</h2>
+      {_flash_html(message, is_error=is_error)}
+      <form action='/create-account' method='post'>
+        <label>Email</label><input type='email' name='email' required>
+        <label style='margin-top:8px'>Username</label><input name='username' required>
+        <label style='margin-top:8px'>Password</label><input type='password' name='password' required>
+        <div style='margin-top:12px'><button type='submit'>Create Account</button></div>
+      </form>
+    </section>"""
+    return page_template(content, request)
+
+
+def render_result(
+    request: Request,
+    prediction: PredictionResult,
+    animal_id: str,
+    location_label: str,
+    image_b64: str,
+) -> str:
+    content = f"""
+    <section class='card'>
+      <h2>Prediction Result</h2>
+      <div class='result'>
+        <p><b>Predicted Breed:</b> {_escape(prediction.breed)}</p>
+        <p><b>Confidence:</b> {prediction.confidence:.2f}%</p>
+        <p><b>Animal ID:</b> {_escape(animal_id.strip() or 'N/A')}</p>
+        <p><b>Detected Location:</b> {_escape(location_label)}</p>
+        <h4>Top Scores</h4>
+        <ul>{prediction.rows_html}</ul>
       </div>
-      <div style='margin-top:10px'><label>GPS Coordinates (lat,long)</label><input type='text' name='gps_coordinates' placeholder='30.8717,75.8520'></div>
-      <div style='margin-top:12px'><button type='submit'>Predict Breed</button></div>
-    </form></div>"""
-    return page_template(content, request)
-
-
-def render_signin(request: Request, message: str = ""):
-    flash = f"<p>{message}</p>" if message else ""
-    content = f"""<div class='card'><h2>Sign In</h2>{flash}
-    <form action='/signin' method='post'>
-    <label>Username</label><input name='identity' required>
-    <label style='margin-top:8px;display:block'>Password</label><input type='password' name='password' required>
-    <div style='margin-top:12px'><button type='submit'>Sign In</button></div>
-    </form><p>New user? <a href='/create-account'>Create account</a></p></div>"""
-    return page_template(content, request)
-
-
-def render_create_account(request: Request, message: str = ""):
-    flash = f"<p>{message}</p>" if message else ""
-    content = f"""<div class='card'><h2>Create Account</h2>{flash}
-    <form action='/create-account' method='post'>
-    <label>Email</label><input type='email' name='email' required>
-    <label style='margin-top:8px;display:block'>Username</label><input name='username' required>
-    <label style='margin-top:8px;display:block'>Password</label><input type='password' name='password' required>
-    <div style='margin-top:12px'><button type='submit'>Create Account</button></div>
-    </form></div>"""
-    return page_template(content, request)
-
-
-def render_result(request: Request, top, conf, animal_id, location_label, rows, image_b64):
-    content = f"""<div class='card'><h2>Prediction Result</h2>
-    <div class='result'>
-      <p><b>Predicted Breed:</b> {top}</p>
-      <p><b>Confidence:</b> {conf:.2f}%</p>
-      <p><b>Animal ID:</b> {animal_id or 'N/A'}</p>
-      <p><b>Detected Location:</b> {location_label}</p>
-      <h4>Top-5 Scores</h4><ul>{rows}</ul>
-    </div>
-    <div style='margin-top:12px'>
-      <h4>Uploaded Image</h4>
-      <img class='img-preview' src='data:image/jpeg;base64,{image_b64}' alt='Uploaded animal'>
-    </div>
-    </div>"""
+      <div style='margin-top:12px'>
+        <h4>Uploaded Image</h4>
+        <img class='img-preview' src='data:image/jpeg;base64,{image_b64}' alt='Uploaded animal'>
+      </div>
+    </section>"""
     return page_template(content, request)
 
 
 def resolve_location_label(gps_coordinates: str) -> str:
-    gps = (gps_coordinates or "").strip()
+    gps = gps_coordinates.strip()
     if not gps:
         return "N/A"
-    try:
-        lat_str, lon_str = [x.strip() for x in gps.split(",", 1)]
-        lat, lon = float(lat_str), float(lon_str)
-    except Exception:
-        return f"Invalid GPS format: {gps}. Use 'lat,long'."
 
     try:
-        url = "https://nominatim.openstreetmap.org/reverse?" + urllib.parse.urlencode({
-            "lat": lat,
-            "lon": lon,
-            "format": "jsonv2",
-            "zoom": 14,
-            "addressdetails": 1,
-        })
-        req = urllib.request.Request(url, headers={"User-Agent": "cattle-breed-app/1.0"})
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        addr = data.get("address", {})
-        village_or_town = addr.get("village") or addr.get("town") or addr.get("city") or addr.get("hamlet")
-        state = addr.get("state") or addr.get("county") or ""
-        country = addr.get("country") or ""
-        if village_or_town:
-            parts = [village_or_town, state, country]
-            return ", ".join([p for p in parts if p])
-        return data.get("display_name", gps)
+        lat_text, lon_text = [part.strip() for part in gps.split(",", 1)]
+        lat = float(lat_text)
+        lon = float(lon_text)
+    except ValueError:
+        return f"Invalid GPS format: {gps}. Use 'lat,long'."
+
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        return f"Invalid GPS range: {gps}. Latitude must be -90..90 and longitude must be -180..180."
+
+    try:
+        query = urllib.parse.urlencode(
+            {
+                "lat": lat,
+                "lon": lon,
+                "format": "jsonv2",
+                "zoom": 14,
+                "addressdetails": 1,
+            }
+        )
+        request = urllib.request.Request(
+            f"https://nominatim.openstreetmap.org/reverse?{query}",
+            headers={"User-Agent": "cattle-breed-app/1.0"},
+        )
+        with urllib.request.urlopen(request, timeout=6) as response:
+            data = json.loads(response.read().decode("utf-8"))
     except Exception:
         return f"{gps} (location lookup unavailable)"
 
-BASE_STYLE = """
-<style>
-:root {
-  --bg: #0b1020;
-  --card: rgba(255,255,255,0.12);
-  --card-solid: #ffffff;
-  --text: #e5e7eb;
-  --muted: #94a3b8;
-  --primary: #7c3aed;
-  --secondary: #06b6d4;
-  --success: #22c55e;
-}
-*{box-sizing:border-box}
-body{
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  margin:0;
-  color:var(--text);
-  background: radial-gradient(1200px 700px at 10% -5%, #3b82f6 0%, transparent 60%),
-              radial-gradient(900px 650px at 95% 8%, #9333ea 0%, transparent 55%),
-              linear-gradient(140deg, #020617 0%, #0b1020 35%, #111827 100%);
-  min-height:100vh;
-}
-.shell{max-width:1120px;margin:0 auto;padding:34px 20px 28px}
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:26px}
-.logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px}
-.logo-dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(120deg,var(--secondary),var(--primary));box-shadow:0 0 22px #22d3ee}
-.nav{display:flex;gap:10px;flex-wrap:wrap}
-.nav a,.ghost-link{text-decoration:none;padding:10px 14px;border-radius:12px;color:#dbeafe;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.18);font-size:14px}
-.nav a:hover,.ghost-link:hover{background:rgba(255,255,255,.16)}
-.hero{display:grid;grid-template-columns:1.2fr .8fr;gap:22px;align-items:stretch}
-.card{background:var(--card);backdrop-filter: blur(10px);border-radius:20px;border:1px solid rgba(255,255,255,.18);box-shadow:0 18px 35px rgba(2,6,23,.45);padding:24px}
-h1,h2,h3,p{margin:0}
-.headline{font-size:34px;font-weight:800;line-height:1.2}
-.subtitle{color:#bfdbfe;margin-top:10px;max-width:760px}
-.badge{display:inline-flex;align-items:center;gap:8px;margin:4px 0 14px;background:rgba(34,211,238,.12);border:1px solid rgba(34,211,238,.35);color:#67e8f9;padding:7px 12px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.2px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-label{display:block;font-size:13px;color:#dbeafe;margin-bottom:6px}
-input,button{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.22);outline:none;font-size:14px}
-input{background:rgba(255,255,255,.1);color:#f8fafc}
-input::placeholder{color:#94a3b8}
-input:focus{border-color:#60a5fa;box-shadow:0 0 0 3px rgba(96,165,250,.2)}
-button{background:linear-gradient(120deg,var(--secondary),var(--primary));color:#fff;font-weight:700;cursor:pointer;border:none;letter-spacing:.2px}
-button:hover{filter:brightness(1.08)}
-.btn-secondary{background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.2)}
-.side-stats{display:grid;grid-template-columns:1fr;gap:12px}
-.stat{padding:14px;border-radius:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.14)}
-.stat b{display:block;font-size:22px;margin-bottom:4px;color:#fff}
-.result{margin-top:16px;padding:14px;border-radius:14px;background:#f8fafc;color:#0f172a;border:1px solid #e2e8f0}
-.result p{margin:6px 0}
-ul{margin:8px 0 0 18px;padding:0}
-.flash{padding:10px 12px;border-radius:12px;margin-bottom:12px;font-size:14px}
-.flash.success{background:rgba(34,197,94,.18);border:1px solid rgba(34,197,94,.45);color:#bbf7d0}
-.auth-wrap{max-width:580px;margin:24px auto 0}
-.footer{margin-top:20px;color:var(--muted);font-size:13px}
-@media(max-width:900px){.hero{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
-</style>
-"""
-def page_template(content: str, active: str = "home") -> str:
-    def current(path: str) -> str:
-        return "style='outline:2px solid rgba(125,211,252,.45)'" if active == path else ""
-
-    return f"""<html><head><meta charset='UTF-8'><meta name='viewport' content='width=device-width, initial-scale=1'>{BASE_STYLE}</head>
-    <body><div class='shell'>
-      <div class='topbar'>
-        <div class='logo'><span class='logo-dot'></span> CattleVision AI</div>
-        <div class='nav'>
-          <a href='/' {current('home')}>Home</a>
-          <a href='/signin' {current('signin')}>Sign In</a>
-          <a href='/create-account' {current('create')}>Create Account</a>
-        </div>
-      </div>
-      {content}
-      <div class='footer'>Designed for farmers, vets, and breeding centers • Modern AI-assisted workflow.</div>
-    </div></body></html>"""
-
-def render_home():
-    content = """
-    <div class='hero'>
-      <div class='card'>
-        <div class='badge'>AI-Assisted Breed Recognition</div>
-        <h1 class='headline'>Indian Cattle & Buffalo Breed Classifier</h1>
-        <p class='subtitle'>Upload an animal image to predict breed with confidence scores. Best results come from clear side or front profile photos.</p>
-        <form action='/predict' method='post' enctype='multipart/form-data' style='margin-top:16px'>
-          <div class='grid'>
-            <div><label>Upload Animal Image</label><input type='file' name='file' required></div>
-            <div><label>Animal ID (optional)</label><input type='text' name='animal_id' placeholder='COW-2024-0042'></div>
-          </div>
-          <div style='margin-top:12px'><label>GPS Coordinates (optional)</label><input type='text' name='gps_coordinates' placeholder='30.8717N, 75.8520E'></div>
-          <div class='grid' style='margin-top:16px'>
-            <button type='submit'>Predict Breed</button>
-            <a href='/create-account' class='ghost-link' style='display:flex;align-items:center;justify-content:center'>New user? Create account</a>
-          </div>
-        </form>
-      </div>
-      <div class='card side-stats'>
-        <div class='stat'><b>Top-5</b><span>See ranked breed probabilities.</span></div>
-        <div class='stat'><b>Fast Inference</b><span>Optimized for low hardware model serving.</span></div>
-        <div class='stat'><b>Field Ready</b><span>Optional Animal ID and GPS metadata capture.</span></div>
-      </div>
-    </div>
-    """
-    return page_template(content, active="home")
+    address = data.get("address", {})
+    locality = address.get("village") or address.get("town") or address.get("city") or address.get("hamlet")
+    region = address.get("state") or address.get("county") or ""
+    country = address.get("country") or ""
+    if locality:
+        return ", ".join(part for part in [locality, region, country] if part)
+    return data.get("display_name") or gps
 
 
-def render_signin(message: str = ""):
-    flash = f"<div class='flash success'>{message}</div>" if message else ""
-    content = f"""
-    <div class='auth-wrap'>
-      <div class='card'>
-        <div class='badge'>Welcome Back</div>
-        <h2 class='headline' style='font-size:30px'>Sign In</h2>
-        <p class='subtitle'>Access your classifier workspace and continue where you left off.</p>
-        {flash}
-        <form action='/signin' method='post' style='margin-top:16px'>
-          <label>Email or Username</label>
-          <input type='text' name='identity' placeholder='you@example.com or username' required>
-          <div style='height:10px'></div>
-          <label>Password</label>
-          <input type='password' name='password' placeholder='••••••••' required>
-          <div class='grid' style='margin-top:16px'>
-            <button type='submit'>Sign In</button>
-            <a href='/create-account' class='ghost-link' style='display:flex;align-items:center;justify-content:center'>Create new account</a>
-          </div>
-        </form>
-      </div>
-    </div>
-    """
-    return page_template(content, active="signin")
+def _extract_bundle(bundle_path: Path, destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(bundle_path, "r:gz") as archive:
+        archive.extractall(destination, filter="data")
 
 
-def render_create_account(message: str = ""):
-    flash = f"<div class='flash success'>{message}</div>" if message else ""
-    content = f"""
-    <div class='auth-wrap'>
-      <div class='card'>
-        <div class='badge'>New User Registration</div>
-        <h2 class='headline' style='font-size:30px'>Create Account</h2>
-        <p class='subtitle'>Register with your email, username, and password to start using the platform.</p>
-        {flash}
-        <form action='/create-account' method='post' style='margin-top:16px'>
-          <label>Email</label>
-          <input type='email' name='email' placeholder='you@example.com' required>
-          <div style='height:10px'></div>
-          <label>Username</label>
-          <input type='text' name='username' placeholder='farmer_raj' required>
-          <div style='height:10px'></div>
-          <label>Password</label>
-          <input type='password' name='password' placeholder='Create a strong password' required>
-          <div class='grid' style='margin-top:16px'>
-            <button type='submit'>Create Account</button>
-            <a href='/signin' class='ghost-link' style='display:flex;align-items:center;justify-content:center'>Back to sign in</a>
-          </div>
-        </form>
-      </div>
-    </div>
-    """
-    return page_template(content, active="create")
-
-def render_result(top, conf, animal_id, gps_coordinates, rows):
-    content = f"""
-    <div class='auth-wrap' style='max-width:860px'>
-      <div class='card'>
-        <div class='badge'>Prediction Complete</div>
-        <h2 class='headline' style='font-size:30px'>Breed Recognition Result</h2>
-        <div class='result'>
-          <p><b>Predicted Breed:</b> {top}</p>
-          <p><b>Confidence:</b> {conf:.2f}%</p>
-          <p><b>Animal ID:</b> {animal_id or 'N/A'}</p>
-          <p><b>GPS Coordinates:</b> {gps_coordinates or 'N/A'}</p>
-          <h4>Top-5 Scores</h4><ul>{rows}</ul>
-        </div>
-        <div class='grid' style='margin-top:14px'>
-          <a href='/' class='ghost-link' style='display:flex;align-items:center;justify-content:center'>Try Another Image</a>
-          <a href='/signin' class='ghost-link' style='display:flex;align-items:center;justify-content:center'>Go to Sign In</a>
-        </div>
-      </div>
-    </div>
-    """
-    return page_template(content, active="home")
-def render_result(top, conf, animal_id, gps_coordinates, rows):
-    content = f"""
-    <div class='auth-wrap' style='max-width:860px'>
-      <div class='card'>
-        <div class='badge'>Prediction Complete</div>
-        <h2 class='headline' style='font-size:30px'>Breed Recognition Result</h2>
-        <div class='result'>
-          <p><b>Predicted Breed:</b> {top}</p>
-          <p><b>Confidence:</b> {conf:.2f}%</p>
-          <p><b>Animal ID:</b> {animal_id or 'N/A'}</p>
-          <p><b>GPS Coordinates:</b> {gps_coordinates or 'N/A'}</p>
-          <h4>Top-5 Scores</h4><ul>{rows}</ul>
-        </div>
-        <div class='grid' style='margin-top:14px'>
-          <a href='/' class='ghost-link' style='display:flex;align-items:center;justify-content:center'>Try Another Image</a>
-          <a href='/signin' class='ghost-link' style='display:flex;align-items:center;justify-content:center'>Go to Sign In</a>
-        </div>
-      </div>
-    </div>
-    """
-    return page_template(content, active="home")
-
-def _load_from_bundle(bundle_path: Path):
+def _bundle_files(bundle_path: Path, destination: Path) -> list[Path]:
     if not bundle_path.exists():
         raise FileNotFoundError(f"Bundle not found: {bundle_path}")
-    tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(bundle_path, "r:gz") as tar:
-        tar.extractall(tmp_dir)
-    all_files = [p for p in tmp_dir.rglob("*") if p.is_file()]
-    int8_candidates = [p for p in all_files if p.name == "breed_classifier_int8.pt"]
-    ts_candidates = [p for p in all_files if p.name == "breed_classifier_ts.pt"]
-    classes_candidates = [p for p in all_files if p.name == "class_names.json"]
-    if not classes_candidates or (not int8_candidates and not ts_candidates):
-        raise FileNotFoundError("Model bundle missing required files")
-    with open(classes_candidates[0], "r", encoding="utf-8") as f:
-        classes = json.load(f)
-    if int8_candidates:
-        model_path = int8_candidates[0]
-        base = models.efficientnet_b0(weights=None)
-        base.classifier[1] = nn.Linear(base.classifier[1].in_features, len(classes))
-        qmodel = torch.quantization.quantize_dynamic(base.eval(), {nn.Linear}, dtype=torch.qint8)
-        state = torch.load(model_path, map_location="cpu")
-        qmodel.load_state_dict(state)
-        return qmodel.eval(), classes, {"type": "int8"}
-    ts_model = torch.jit.load(str(ts_candidates[0]), map_location="cpu").eval()
-    return ts_model, classes, {"type": "torchscript"}
+    _extract_bundle(bundle_path, destination)
+    return [path for path in destination.rglob("*") if path.is_file()]
 
 
-def _normalize_loaded(loaded):
+def _load_classes(classes_path: Path) -> list[str]:
+    with classes_path.open("r", encoding="utf-8") as classes_file:
+        classes = json.load(classes_file)
+    if not isinstance(classes, list) or not all(isinstance(item, str) for item in classes):
+        raise ValueError("class_names.json must contain a list of class-name strings")
+    if not classes:
+        raise ValueError("class_names.json must contain at least one class name")
+    return classes
+
+
+def _load_int8_model(model_path: Path, classes: list[str]) -> torch.nn.Module:
+    base_model = models.efficientnet_b0(weights=None)
+    base_model.classifier[1] = nn.Linear(base_model.classifier[1].in_features, len(classes))
+    quantized_model = torch.quantization.quantize_dynamic(base_model.eval(), {nn.Linear}, dtype=torch.qint8)
+    state = torch.load(model_path, map_location="cpu")
+    quantized_model.load_state_dict(state)
+    return quantized_model.eval()
+
+
+def _load_from_bundle(bundle_path: Path) -> tuple[torch.nn.Module, list[str], dict[str, str]]:
+    bundle_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
+    files = _bundle_files(bundle_path, bundle_dir)
+    classes_paths = [path for path in files if path.name == "class_names.json"]
+    int8_paths = [path for path in files if path.name == "breed_classifier_int8.pt"]
+    torchscript_paths = [path for path in files if path.name == "breed_classifier_ts.pt"]
+
+    if not classes_paths:
+        raise FileNotFoundError("Model bundle missing class_names.json")
+    if not int8_paths and not torchscript_paths:
+        raise FileNotFoundError("Model bundle missing breed_classifier_int8.pt or breed_classifier_ts.pt")
+
+    classes = _load_classes(classes_paths[0])
+    if int8_paths:
+        return _load_int8_model(int8_paths[0], classes), classes, {"type": "int8"}
+
+    torchscript_model = torch.jit.load(str(torchscript_paths[0]), map_location="cpu").eval()
+    return torchscript_model, classes, {"type": "torchscript"}
+
+
+def _normalize_loaded(loaded: Any) -> tuple[torch.nn.Module, list[str], dict[str, Any]]:
     if isinstance(loaded, tuple):
         if len(loaded) == 3:
-            return loaded[0], loaded[1], loaded[2]
+            model, classes, meta = loaded
+            return model, classes, meta
         if len(loaded) == 2:
-            return loaded[0], loaded[1], {"type": "unknown"}
+            model, classes = loaded
+            return model, classes, {"type": "unknown"}
     if isinstance(loaded, dict):
         return loaded.get("model"), loaded.get("classes"), loaded.get("meta", {"type": "unknown"})
     raise RuntimeError(f"Unexpected loader output type={type(loaded)}")
 
-def get_model():
+
+def get_model() -> tuple[torch.nn.Module, list[str]]:
     global MODEL, CLASSES, MODEL_META
-    if MODEL is None:
-        bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
-        MODEL, CLASSES, MODEL_META = _normalize_loaded(_load_from_bundle(bundle))
-   return MODEL, CLASSES
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
-
-
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return render_home(request)
-
+    if MODEL is None or CLASSES is None:
+        MODEL, CLASSES, MODEL_META = _normalize_loaded(_load_from_bundle(_model_bundle_path()))
     return MODEL, CLASSES
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
-
-
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request):
-    return render_home(request)
-        loaded = _load_from_bundle(bundle)
-        model, classes, meta = _normalize_loaded(loaded)
-        MODEL, CLASSES, MODEL_META = model, classes, meta
-    return MODEL, CLASSES
-
-
-def inspect_bundle_files():
-    bundle = Path(os.getenv("MODEL_BUNDLE", "cattle_model_low_hw.tar.gz"))
-    info = {"bundle_path": str(bundle), "exists": bundle.exists(), "files": []}
-    if not bundle.exists():
+def inspect_bundle_files() -> dict[str, Any]:
+    bundle_path = _model_bundle_path()
+    info: dict[str, Any] = {"bundle_path": str(bundle_path), "exists": bundle_path.exists(), "files": []}
+    if not bundle_path.exists():
         return info
 
-    tmp_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle_debug"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(bundle, "r:gz") as tar:
-        tar.extractall(tmp_dir)
-
-    info["files"] = sorted(str(p.relative_to(tmp_dir)) for p in tmp_dir.rglob("*") if p.is_file())
+    debug_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle_debug"
+    files = _bundle_files(bundle_path, debug_dir)
+    info["files"] = sorted(str(path.relative_to(debug_dir)) for path in files)
     return info
+
+
+def _predict_image(image: Image.Image, model: torch.nn.Module, classes: list[str]) -> PredictionResult:
+    tensor = TFMS(image).unsqueeze(0)
+    with torch.no_grad():
+        probabilities = torch.softmax(model(tensor), dim=1)[0]
+        top_k = min(5, len(classes))
+        values, indexes = torch.topk(probabilities, top_k)
+
+    top_index = indexes[0].item()
+    rows = "".join(
+        f"<li>{_escape(classes[index])}: {value * 100:.2f}%</li>"
+        for value, index in zip(values.tolist(), indexes.tolist())
+    )
+    return PredictionResult(breed=classes[top_index], confidence=values[0].item() * 100, rows_html=rows)
+
+
+@app.get("/health")
+def health() -> dict[str, Any]:
+    return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
+
+
+@app.get("/", response_class=HTMLResponse)
+def home(request: Request):
+    return render_home(request)
+
+
 @app.get("/signin", response_class=HTMLResponse)
-def signin_page(request: Request):
-    return render_signin(request)
+def signin_page(request: Request) -> HTMLResponse:
+    return HTMLResponse(render_signin(request))
+
 
 @app.post("/signin")
 async def signin(request: Request, identity: str = Form(...), password: str = Form(...)):
-    stored = USERS.get(identity.strip().lower())
+    user_key = _normalize_identity(identity)
+    stored = USERS.get(user_key)
     if not stored or stored["password"] != password:
-        return HTMLResponse(render_signin(request, "Invalid credentials"), status_code=401)
+        return HTMLResponse(render_signin(request, "Invalid credentials", is_error=True), status_code=401)
+
     request.session["user"] = stored["username"]
     return RedirectResponse(url="/", status_code=303)
-@app.get("/create-account", response_class=HTMLResponse)
-def create_account_page(request: Request):
-    return render_create_account(request)
+
 
 @app.get("/create-account", response_class=HTMLResponse)
-def create_account_page(request: Request):
-    return render_create_account(request)
+def create_account_page(request: Request) -> HTMLResponse:
+    return HTMLResponse(render_create_account(request))
+
+
 @app.post("/create-account", response_class=HTMLResponse)
-async def create_account(request: Request, email: str = Form(...), username: str = Form(...), password: str = Form(...)):
-    key = username.strip().lower()
-    if key in USERS:
-        return HTMLResponse(render_create_account(request, "Username already exists"), status_code=400)
-    USERS[key] = {"email": email.strip(), "username": username.strip(), "password": password}
-    return HTMLResponse(render_signin(request, f"Account created for {username}. Please sign in."))
+async def create_account(
+    request: Request,
+    email: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+) -> HTMLResponse:
+    clean_email = email.strip()
+    clean_username = username.strip()
+    clean_password = password.strip()
+
+    if not clean_email or not clean_username or not clean_password:
+        return HTMLResponse(
+            render_create_account(request, "Email, username, and password are required.", is_error=True),
+            status_code=400,
+        )
+
+    username_key = _normalize_identity(clean_username)
+    email_key = _normalize_identity(clean_email)
+    if username_key in USERS or email_key in USERS:
+        return HTMLResponse(render_create_account(request, "Username or email already exists.", is_error=True), status_code=400)
+
+    user_record = {"email": clean_email, "username": clean_username, "password": clean_password}
+    USERS[username_key] = user_record
+    USERS[email_key] = user_record
+    return HTMLResponse(render_signin(request, f"Account created for {clean_username}. Please sign in."))
+
+
 @app.get("/logout")
-def logout(request: Request):
+def logout(request: Request) -> RedirectResponse:
     request.session.clear()
     return RedirectResponse(url="/signin", status_code=303)
 
+
 @app.get("/debug/bundle")
-def debug_bundle():
-    if os.getenv("DEBUG_BUNDLE", "false").lower() != "true":
-        raise HTTPException(status_code=403, detail="Enable DEBUG_BUNDLE=true to use this endpoint")
+def debug_bundle() -> dict[str, Any]:
+    if os.getenv(DEBUG_BUNDLE_FLAG, "false").lower() != "true":
+        raise HTTPException(status_code=403, detail=f"Enable {DEBUG_BUNDLE_FLAG}=true to use this endpoint")
     return inspect_bundle_files()
-@app.get("/", response_class=HTMLResponse)
-def home():
-    return render_home()
-@app.get("/signin", response_class=HTMLResponse)
-def signin_page():
-    return render_signin()
-@app.get("/signin", response_class=HTMLResponse)
-def signin_page():
-    return render_signin()
-@app.post("/signin")
-async def signin(identity: str = Form(...), password: str = Form(...)):
-    if not identity.strip() or not password.strip():
-        raise HTTPException(status_code=400, detail="Identity and password are required.")
-    return RedirectResponse(url="/", status_code=303)
-@app.get("/create-account", response_class=HTMLResponse)
-def create_account_page():
-    return render_create_account()
-@app.post("/create-account", response_class=HTMLResponse)
-async def create_account(email: str = Form(...), username: str = Form(...), password: str = Form(...)):
-    if not email.strip() or not username.strip() or not password.strip():
-        raise HTTPException(status_code=400, detail="Email, username, and password are required.")
-    return render_signin(message=f"Account created for {username}. Please sign in.")
-@app.post("/create-account", response_class=HTMLResponse)
-async def create_account(email: str = Form(...), username: str = Form(...), password: str = Form(...)):
-    if not email.strip() or not username.strip() or not password.strip():
-        raise HTTPException(status_code=400, detail="Email, username, and password are required.")
-    return render_signin(message=f"Account created for {username}. Please sign in.")
+
+
 @app.post("/predict", response_class=HTMLResponse)
 async def predict_page(
     request: Request,
@@ -494,22 +419,15 @@ async def predict_page(
     try:
         content = await file.read()
         image = Image.open(BytesIO(content)).convert("RGB")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid image: {e}")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid image: {exc}") from exc
 
     try:
         model, classes = get_model()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Model load failed: {e}. Ensure latest deployment is active.")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Model load failed: {exc}. Ensure latest deployment is active.") from exc
 
-    x = TFMS(image).unsqueeze(0)
-    with torch.no_grad():
-        probs = torch.softmax(model(x), dim=1)[0]
-        vals, idxs = torch.topk(probs, 5)
-    top = classes[idxs[0].item()]
-    conf = vals[0].item() * 100
-    rows = "".join([f"<li>{classes[i]}: {v*100:.2f}%</li>" for v, i in zip(vals.tolist(), idxs.tolist())])
+    prediction = _predict_image(image, model, classes)
     location_label = resolve_location_label(gps_coordinates)
     image_b64 = base64.b64encode(content).decode("utf-8")
-    return render_result(request, top, conf, animal_id, location_label, rows, image_b64)
-
+    return HTMLResponse(render_result(request, prediction, animal_id, location_label, image_b64))
