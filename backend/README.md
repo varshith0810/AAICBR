@@ -1,6 +1,5 @@
 
 # Backend
-
 ## Core service
 - `app.py`: FastAPI app and server-rendered UI routes
 - `db.py`: SQLite connection/bootstrap
