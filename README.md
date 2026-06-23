@@ -50,10 +50,6 @@ SQLite is used by default (`backend/app.db`) with tables:
 ## Render deploy
 Start command:
 `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
-
-## Render deploy
-Start command:
-`uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
 ## Features
 - Login from DB users table
 - Image upload/camera capture
@@ -78,8 +74,8 @@ python colab_breed_recognition.py --mode all --dataset_dir "/Users/yourname/data
 ## Login & camera-enabled frontend
 - Login is required before prediction.
 - Set env vars for credentials:
-  - `APP_USERNAME` (default: `admin`)
-  - `APP_PASSWORD` (default: `admin123`)
+  - `APP_USERNAME`
+  - `APP_PASSWORD` 
 - Browser camera permission is requested with **Allow Camera** button.
 ## Email notification (optional)
 Set these env vars to send result email from the web app:
@@ -89,31 +85,13 @@ Set these env vars to send result email from the web app:
 - `SMTP_PASS`
 - `FROM_EMAIL`
 In prediction form, user can optionally enter email to receive result.
-# AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
-Yes — you can deploy with only `cattle_model_low_hw.tar.gz` (no separate `models/` folder needed).
-## What to keep
-- `cattle_model_low_hw.tar.gz` containing:
-  - `breed_classifier_int8.pt`
-  - `class_names.json`
-## Railway-ready app added
-- `src/railway_app.py` (frontend + inference backend)
-- `Procfile`
-- `railway.json`
 The app automatically extracts the tar.gz bundle and loads the quantized model.
-## Local test before Railway
+## Local test
 ```bash
 pip install -r requirements.txt
 MODEL_BUNDLE=./cattle_model_low_hw.tar.gz uvicorn src.railway_app:app --host 0.0.0.0 --port 8000
 ```
 Open: `http://localhost:8000`
-## Deploy on Railway (step-by-step)
-1. Put `cattle_model_low_hw.tar.gz` in repo root.
-2. Push repo to GitHub.
-3. Create Railway project from GitHub repo.
-4. Add env var (optional if filename is default):
-   - `MODEL_BUNDLE=cattle_model_low_hw.tar.gz`
-5. Deploy.
-6. Open Railway domain and upload animal image.
 ## Endpoints
 - `GET /health`
 - `GET /` (frontend upload form)
