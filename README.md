@@ -1,317 +1,456 @@
 # AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
-Clean two-tier repository layout:
-```text
-backend/
-  app.py
-  db.py
-  schema.sql
-  README.md
-  ml/
-    src/
-      config.py
-      preprocess.py
-      train.py
-      infer.py
-    export_low_hardware.py
-    colab_breed_recognition.py
 
-frontend/
-  README.md
-  docs/
-    frontend_preview.svg
-```
+This repository contains a software-only AI/ML system for recognizing Indian cattle and buffalo breeds from images. It supports two common workflows:
 
-## Run Backend
-```bash
-uvicorn backend.app:app --host 0.0.0.0 --port 8000
-```
+1. **Run the deployed-style FastAPI web app** for image upload, sign-in, prediction, GPS location display, and health checks.
+2. **Train/export the model locally or in Colab** using an already extracted dataset folder.
 
-## Deploy
-
-Render start command:
-
-```bash
-uvicorn backend.app:app --host 0.0.0.0 --port $PORT
-```
-Reorganized into frontend/backend style with database support.
-
-Reorganized into frontend/backend style with database support.
-## Structure
-- `backend/app.py` FastAPI backend + server-rendered frontend pages
-- `backend/db.py` SQLite database initialization and access
-- `frontend/` reserved for future separate frontend assets
-- `src/` ML/training modules
-
-## Database
-SQLite is used by default (`backend/app.db`) with tables:
-- `users`
-- `predictions`
-
-## Render deploy
-Start command:
-`uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
-## Features
-- Login from DB users table
-- Image upload/camera capture
-- Breed prediction
-- Email notification (optional SMTP)
-- Prediction history page: `/history`
-# AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
-Render-focused deployment + Colab training/export project.
-## Deploy on Render
-1. Keep `cattle_model_low_hw.tar.gz` in repo root.
-2. Push to GitHub.
-3. In Render: New + -> Blueprint -> select repo.
-4. Render uses `render.yaml` to deploy `uvicorn src.web_app:app --host 0.0.0.0 --port $PORT`.
-5. Open deployed URL and upload image.
-## Debug
-- `GET /health`
-- Optional: set `DEBUG_BUNDLE=true` and call `GET /debug/bundle`.
-## Train locally/colab with local dataset path
-```bash
-python colab_breed_recognition.py --mode all --dataset_dir "/Users/yourname/datasets/breeds" --work_dir .
-```
-## Login & camera-enabled frontend
-- Login is required before prediction.
-- Set env vars for credentials:
-  - `APP_USERNAME`
-  - `APP_PASSWORD` 
-- Browser camera permission is requested with **Allow Camera** button.
-## Email notification (optional)
-Set these env vars to send result email from the web app:
-- `SMTP_HOST`
-- `SMTP_PORT` (default `587`)
-- `SMTP_USER`
-- `SMTP_PASS`
-- `FROM_EMAIL`
-In prediction form, user can optionally enter email to receive result.
-The app automatically extracts the tar.gz bundle and loads the quantized model.
-## Local test
-```bash
-pip install -r requirements.txt
-MODEL_BUNDLE=./cattle_model_low_hw.tar.gz uvicorn src.railway_app:app --host 0.0.0.0 --port 8000
-```
-Open: `http://localhost:8000`
-## Endpoints
-- `GET /health`
-- `GET /` (frontend upload form)
-- `POST /predict` (form submit)
-## Notes
-- Software-only model.
-- If bundle is missing or invalid, startup inference load will fail with clear error.
-## Bundle debug tip
-If `/predict` gives model bundle error, your tar likely has nested paths.
-The app now searches recursively for `breed_classifier_int8.pt` and `class_names.json` inside the extracted bundle.
-## Debug update
-Bundle loader now accepts either `breed_classifier_int8.pt` **or** `breed_classifier_ts.pt` plus `class_names.json`.
-If deploy still fails, verify tar contents include one model file and class map.
-## UI Preview
-A frontend preview mock is available at `docs/frontend_preview.svg`.
-## Debug patch
-If you saw `too many values to unpack (expected 2)`, redeploy latest code.
-The loader now supports both 2-value and 3-value tuple returns for compatibility.
-## Use dataset path from your computer (not Drive)
-You can pass local dataset path directly:
-```bash
-python colab_breed_recognition.py --mode all --dataset_dir "/Users/yourname/datasets/breeds" --work_dir .
-```
-Windows example:
-```bash
-python colab_breed_recognition.py --mode all --dataset_dir "C:/datasets/breeds" --work_dir .
-```
-Or via environment variable:
-```bash
-export DATASET_DIR="/Users/yourname/datasets/breeds"
-python colab_breed_recognition.py --mode all --work_dir .
-```
-## Optional bundle debug endpoint
-To inspect bundle contents on Railway, set env var:
-`DEBUG_BUNDLE=true`
-Then open:
-`GET /debug/bundle`
-If you still see `too many values to unpack`, service is likely running an old deployment.
-Trigger **Redeploy latest commit** in Railway and verify with `/health`.
-# AI-Assisted Breed Recognition for Indian Cattle and Buffaloes (Colab Training-Only)
-This repo is now simplified to focus on **training in Google Colab** and **exporting low-hardware model artifacts**.
-Production deployment files were removed for now.
-## Kept files (only required for training/export)
-- `colab_breed_recognition.py` (single-file Colab training + prediction flow)
-- `src/config.py`
-- `src/preprocess.py`
-- `src/train.py`
-- `src/infer.py`
-- `scripts/export_low_hardware.py`
-- `requirements.txt`
-## Colab training steps
-### 1) Clone repo
-```bash
-!git clone <YOUR_REPO_URL>
-%cd AI-ASSISTED-BREED-RECOGNITION-FOR-INDIAN-CATTLE-AND-BUFFALOES
-```
-### 2) Install dependencies
-# AI-Assisted Breed Recognition for Indian Cattle and Buffaloes
-## Dataset path prompt behavior (updated)
-The code now asks for dataset path if not provided.
-- `colab_breed_recognition.py` asks dataset path before training when `--dataset_dir` is missing.
-- `src/preprocess.py` asks dataset path interactively if you run without argument.
-- `src/train.py` asks dataset path interactively if you run without argument.
-## Colab run
-## Updated behavior (as requested)
-Now the script does the following in sequence:
-1. **Asks dataset path** before training (if `--dataset_dir` is not provided).
-2. Trains model.
-3. **Asks image path** after training and predicts breed immediately.
-## Run in Colab
-## Google Drive unzipped dataset only (zip code removed)
-The pipeline now **does not unzip data**. It expects dataset already extracted in Google Drive.
-## Required dataset folder formats
-Either of these:
-1. `/content/drive/MyDrive/.../breeds/train` and `/content/drive/MyDrive/.../breeds/test`
-2. `/content/drive/MyDrive/.../train` and `/content/drive/MyDrive/.../test`
-## Colab run order
-### 1) Install dependencies
-```bash
-!pip install -r requirements.txt
-```
-### 3) Mount Drive
-### 2) Mount Google Drive
-```python
-from google.colab import drive
-drive.mount('/content/drive')
-```
-### 4) Run full flow
-```bash
-!python colab_breed_recognition.py --mode all --work_dir /content
-```
-It will ask:
-- dataset directory path
-- image path for a post-training prediction
-(Or pass dataset path directly)
-### 3) Run full flow (interactive prompts enabled)
-```bash
-!python colab_breed_recognition.py --mode all --work_dir /content
-```
-### Full flow with explicit path
-It will ask:
-- Dataset directory path (`train/test` or `breeds/train/test`)
-- Image path for single prediction after training
-### Optional (skip prompt by passing dataset path)
-```bash
-!python colab_breed_recognition.py --mode all --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
-```
-## Modular run
-### Option 1 (interactive prompt)
-```bash
-python -m src.preprocess
-python -m src.train
-python app.py
-```
-
-### Option 2 (pass path explicitly)
-```bash
-python -m src.preprocess /content/drive/MyDrive/datasets/breeds
-python -m src.train /content/drive/MyDrive/datasets/breeds
-python app.py
-```
-
-## Launch upload-based app anytime
-```bash
-!python colab_breed_recognition.py --mode app --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
-```
-
-## Dataset folder format expected
-Either:
-- `/.../breeds/train` and `/.../breeds/test`
-- `/.../train` and `/.../test`
-
-## Notes
-- Software-only model.
-- Upload-based UI remains available through Gradio app mode.
-
-### 3) Validate + Train
-
-```bash
-!python colab_breed_recognition.py --mode all --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
-```
-
-
-
-## Extract model for low hardware
-
-After training, run:
-```bash
-python scripts/export_low_hardware.py --model_path models/breed_classifier.pt --classes_path models/class_names.json --out_dir models
-```
-
-Generated files:
-- `models/breed_classifier_int8.pt`
-- `models/breed_classifier_ts.pt`
-- `models/breed_classifier.onnx`
-- `models/class_names.json`
-
-Minimal deploy bundle:
-```bash
-tar -czf cattle_model_low_hw.tar.gz models/breed_classifier_int8.pt models/class_names.json
-```
+The project uses PyTorch/EfficientNet-B0 for breed classification and FastAPI for the production-style web interface.
 
 ---
 
-## Next phase
-After you finalize the trained/extracted model, we can rebuild a clean production deployment project for Railway.
+## Quick start: run the web app
 
-### 4) Launch App
-```bash
-!python colab_breed_recognition.py --mode app --dataset_dir "/content/drive/MyDrive/datasets/breeds" --work_dir /content
-```
-
-## Modular order (optional)
-```bash
-python -m src.preprocess /content/drive/MyDrive/datasets/breeds
-
-This project implements an **end-to-end software-only breed recognition pipeline** for the following 41 breeds:
-
-`vechur, umblachery, toda, tharparkar, surti, sahiwal, redsindhi, reddane, rathi, pulikulam, ongole, nimari, niliravi, nagpuri, nagori, murrah, mehsana, malnadgidda, krishnavalley, khillari, kherigarh, kenkatha, kasargod, kankrej, kangayam, jersey, jaffrabadi, holsteinfriesian, hariana, hallikar, guernsey, gir, deoni, dangi, brownswiss, bhadawari, bargur, banni, ayrshire, amritmahal, alambadi`.
-
-## What this builds
-
-1. **Data preprocessing**
-   - Unzips `dataset.zip`.
-   - Expects structure: `breeds/train/<breed_name>/*.jpg` and `breeds/test/<breed_name>/*.jpg`.
-   - Validates split and breed coverage.
-
-2. **Model training**
-   - Uses transfer learning with `EfficientNet-B0`.
-   - Trains multiclass classifier for breed recognition.
-   - Saves best weights as `models/breed_classifier.pt` and class map as `models/class_names.json`.
-
-3. **User-facing recognition app**
-   - Gradio app asks user to upload an animal image.
-   - Returns predicted breed + top-5 confidence scores.
-
-## Setup
+### 1. Create and activate a virtual environment
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
+```
+
+On Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+### 2. Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-## Run full pipeline
+### 3. Confirm the model bundle exists
+
+The FastAPI app expects this file in the repository root by default:
+
+```text
+cattle_model_low_hw.tar.gz
+```
+
+You can also point to another bundle with the `MODEL_BUNDLE` environment variable.
+
+### 4. Start the app
+
+Recommended direct command:
+
+```bash
+uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+Compatibility command used by the current Render config:
+
+```bash
+uvicorn backend.app:app --host 0.0.0.0 --port 8000
+```
+
+Open the app:
+
+```text
+http://localhost:8000
+```
+
+### 5. Use the web app
+
+1. Open `/create-account` and create a username/password.
+2. Sign in at `/signin`.
+3. Upload an animal image on `/`.
+4. Optionally enter:
+   - Animal ID
+   - GPS coordinates as `lat,long`, for example `30.8717,75.8520`
+5. Submit the form to view:
+   - Predicted breed
+   - Confidence score
+   - Top scores
+   - Uploaded image preview
+   - Location label if GPS lookup is available
+
+---
+
+## FastAPI endpoints
+
+| Route | Method | Purpose |
+|---|---:|---|
+| `/health` | GET | Basic health check and model-loaded status |
+| `/` | GET | Authenticated upload/prediction page |
+| `/signin` | GET/POST | Sign-in page and login handler |
+| `/create-account` | GET/POST | Account creation page and handler |
+| `/logout` | GET | Clear current session |
+| `/predict` | POST | Image upload and breed prediction |
+| `/debug/bundle` | GET | Model-bundle inspection when `DEBUG_BUNDLE=true` |
+
+---
+
+## Deployment on Render
+
+The repository includes `render.yaml` for Render Blueprint deployment.
+
+Current Render start command:
+
+```bash
+uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+```
+
+`backend.app` is only a compatibility wrapper. The real app lives in `src.app`.
+
+Required deployment files:
+
+```text
+render.yaml
+requirements.txt
+cattle_model_low_hw.tar.gz
+src/app.py
+backend/app.py
+```
+
+Render environment variables configured in `render.yaml`:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `MODEL_BUNDLE` | `cattle_model_low_hw.tar.gz` | Model bundle loaded by the app |
+| `DEBUG_BUNDLE` | `false` | Enables `/debug/bundle` when set to `true` |
+
+Recommended production override:
+
+| Variable | Purpose |
+|---|---|
+| `SESSION_SECRET` | Secret key for signed browser sessions. Set this to a strong random value in production. |
+
+---
+
+## Project structure
+
+```text
+.
+├── app.py                         # Optional Gradio demo app for local model testing
+├── backend/
+│   ├── app.py                     # Compatibility wrapper: imports app from src.app
+│   ├── db.py                      # Optional SQLite helper for future DB-backed auth/history
+│   ├── schema.sql                 # Optional SQLite schema for users and predictions
+│   └── ml/                        # Older/Colab-oriented ML workspace
+├── cattle_model_low_hw.tar.gz     # Deployment model bundle used by FastAPI app
+├── dataset                        # Text file containing the Kaggle dataset URL
+├── frontend/                      # UI notes/mockup assets only; no separate frontend app yet
+├── render.yaml                    # Render deployment configuration
+├── requirements.txt               # Python dependencies
+├── scripts/
+│   ├── export_low_hardware.py     # Export trained model to int8/TorchScript/ONNX artifacts
+│   └── run_pipeline.sh            # Local preprocess + train + Gradio demo helper
+└── src/
+    ├── app.py                     # Main FastAPI app and inference web UI
+    ├── config.py                  # Breed list and standard local paths
+    ├── infer.py                   # Local predictor used by root Gradio app
+    ├── preprocess.py              # Dataset structure validation
+    ├── train.py                   # Training script and optional Gradio app mode
+    └── web_app.py                 # Compatibility wrapper around src.app
+```
+
+---
+
+## Model bundle expected by the FastAPI app
+
+By default, `src.app` loads:
+
+```text
+cattle_model_low_hw.tar.gz
+```
+
+The bundle must contain:
+
+```text
+class_names.json
+breed_classifier_int8.pt
+```
+
+or:
+
+```text
+class_names.json
+breed_classifier_ts.pt
+```
+
+The loader searches recursively inside the extracted tarball, so nested paths are accepted as long as those filenames exist.
+
+To inspect the bundle in a running app:
+
+```bash
+DEBUG_BUNDLE=true uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+Then open:
+
+```text
+http://localhost:8000/debug/bundle
+```
+
+---
+
+## Dataset setup for training
+
+Training expects an already extracted dataset folder. The code does **not** download or unzip the dataset for you.
+
+Expected folder format, either:
+
+```text
+/path/to/breeds/train/<breed_name>/*.jpg
+/path/to/breeds/test/<breed_name>/*.jpg
+```
+
+or:
+
+```text
+/path/to/dataset/breeds/train/<breed_name>/*.jpg
+/path/to/dataset/breeds/test/<breed_name>/*.jpg
+```
+
+The file named `dataset` in this repo contains the Kaggle dataset URL.
+
+---
+
+## Validate dataset structure
+
+```bash
+python -m src.preprocess /path/to/breeds
+```
+
+If you do not pass a path, the script will ask for one interactively:
+
+```bash
+python -m src.preprocess
+```
+
+The validation prints:
+
+- missing train/test splits,
+- missing breed folders,
+- image counts per breed.
+
+---
+
+## Train a model
+
+Example:
+
+```bash
+python -m src.train --mode all --dataset_dir /path/to/breeds --work_dir . --epochs 8 --batch_size 32 --lr 0.001
+```
+
+Useful modes:
+
+| Mode | What it does |
+|---|---|
+| `preprocess` | Validate dataset structure only |
+| `train` | Train model only |
+| `app` | Launch Gradio app using an existing trained model |
+| `all` | Validate, train, then ask for one image path for a quick prediction |
+
+Training outputs are written under:
+
+```text
+models/
+├── breed_classifier.pt
+└── class_names.json
+```
+
+`models/` is ignored by git because trained model files can be large.
+
+---
+
+## Export model for low-hardware deployment
+
+After training, export CPU-friendly artifacts:
+
+```bash
+python scripts/export_low_hardware.py \
+  --model_path models/breed_classifier.pt \
+  --classes_path models/class_names.json \
+  --out_dir models
+```
+
+Generated files:
+
+```text
+models/breed_classifier_int8.pt
+models/breed_classifier_ts.pt
+models/breed_classifier.onnx  # optional; skipped if ONNX dependencies are unavailable
+models/class_names.json
+```
+
+Create the minimal deployment bundle:
+
+```bash
+tar -czf cattle_model_low_hw.tar.gz \
+  -C models \
+  breed_classifier_int8.pt \
+  class_names.json
+```
+
+Then run the FastAPI app again:
+
+```bash
+MODEL_BUNDLE=./cattle_model_low_hw.tar.gz uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+---
+
+## Optional Gradio demo
+
+The root `app.py` launches a simple Gradio UI that uses `src.infer` and expects these local files:
+
+```text
+models/breed_classifier.pt
+models/class_names.json
+```
+
+Run it with:
+
+```bash
+python app.py
+```
+
+This is useful for quick local experiments after training. For deployment, prefer the FastAPI app in `src.app`.
+
+---
+
+## One-command local pipeline helper
+
+If your dataset path is provided interactively, you can run:
 
 ```bash
 ./scripts/run_pipeline.sh
 ```
 
-Or step-by-step:
+This runs:
+
+1. `python -m src.preprocess`
+2. `python -m src.train`
+3. `python app.py`
+
+For reproducibility, explicit commands with `--dataset_dir` are recommended instead.
+
+---
+
+## Colab-oriented single-file workflow
+
+A single-file Colab-oriented script is available at:
+
+```text
+backend/ml/colab_breed_recognition.py
+```
+
+Example:
 
 ```bash
-python -m src.preprocess
-
-python -m src.train
-python app.py
+python backend/ml/colab_breed_recognition.py \
+  --mode all \
+  --dataset_dir /path/to/breeds \
+  --work_dir .
 ```
-## Notes
-- Software-only model.
-- App asks user to upload image.
-- This implementation is strictly **software model only** (no hardware component).
-- Place the provided dataset zip at repo root as `dataset.zip` before preprocessing.
+
+This script is useful if you want one file that validates, trains, predicts, or launches a Gradio app in a notebook/Colab-style workflow.
+
+---
+
+## Environment variables
+
+| Variable | Used by | Purpose |
+|---|---|---|
+| `MODEL_BUNDLE` | `src.app` | Path to model tarball. Defaults to `cattle_model_low_hw.tar.gz`. |
+| `SESSION_SECRET` | `src.app` | Secret key for browser sessions. Use a strong value in production. |
+| `DEBUG_BUNDLE` | `src.app` | Set to `true` to enable `/debug/bundle`. |
+| `DATASET_DIR` | `backend/ml/colab_breed_recognition.py` | Optional dataset path fallback for the Colab script. |
+| `DB_PATH` | `backend/db.py` | Optional SQLite DB path if DB helpers are wired into the app later. |
+
+---
+
+## Troubleshooting
+
+### `Model load failed` or bundle missing
+
+Check that `cattle_model_low_hw.tar.gz` exists in the repo root or set `MODEL_BUNDLE` explicitly:
+
+```bash
+MODEL_BUNDLE=/path/to/cattle_model_low_hw.tar.gz uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+You can inspect bundle contents with:
+
+```bash
+DEBUG_BUNDLE=true uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+Then visit `/debug/bundle`.
+
+### Invalid GPS format
+
+Use this format:
+
+```text
+lat,long
+```
+
+Example:
+
+```text
+30.8717,75.8520
+```
+
+### Training cannot find dataset
+
+Make sure your path contains either:
+
+```text
+train/
+test/
+```
+
+or:
+
+```text
+breeds/train/
+breeds/test/
+```
+
+### Root Gradio app cannot find model
+
+`python app.py` expects:
+
+```text
+models/breed_classifier.pt
+models/class_names.json
+```
+
+If you only have `cattle_model_low_hw.tar.gz`, use the FastAPI app instead.
+
+---
+
+## Recommended workflow for new users
+
+If you only want to **try the existing app**:
+
+```bash
+pip install -r requirements.txt
+uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
+
+If you want to **train your own model**:
+
+```bash
+pip install -r requirements.txt
+python -m src.preprocess /path/to/breeds
+python -m src.train --mode train --dataset_dir /path/to/breeds --work_dir .
+python scripts/export_low_hardware.py --model_path models/breed_classifier.pt --classes_path models/class_names.json --out_dir models
+tar -czf cattle_model_low_hw.tar.gz -C models breed_classifier_int8.pt class_names.json
+uvicorn src.app:app --host 0.0.0.0 --port 8000
+```
