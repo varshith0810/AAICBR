@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any
-
 import torch
 import torch.nn as nn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -23,10 +22,8 @@ APP_TITLE = "Cattle Breed Recognition Frontend + API"
 DEFAULT_MODEL_BUNDLE = "cattle_model_low_hw.tar.gz"
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change-me")
 DEBUG_BUNDLE_FLAG = "DEBUG_BUNDLE"
-
 app = FastAPI(title=APP_TITLE)
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
-
 MODEL: torch.nn.Module | None = None
 CLASSES: list[str] | None = None
 MODEL_META: dict[str, Any] | None = None
@@ -59,39 +56,25 @@ BASE_STYLE = """
   @media(max-width:900px){.grid{grid-template-columns:1fr}}
 </style>
 """
-
-
 @dataclass(frozen=True)
 class PredictionResult:
     breed: str
     confidence: float
     rows_html: str
-
-
 def _escape(value: object) -> str:
     return html.escape(str(value), quote=True)
-
-
 def _current_user(request: Request) -> str | None:
     user = request.session.get("user")
     return str(user) if user else None
-
-
 def _normalize_identity(identity: str) -> str:
     return identity.strip().lower()
-
-
 def _model_bundle_path() -> Path:
     return Path(os.getenv("MODEL_BUNDLE", DEFAULT_MODEL_BUNDLE))
-
-
 def _flash_html(message: str, *, is_error: bool = False) -> str:
     if not message:
         return ""
     css_class = "flash error" if is_error else "flash"
     return f"<div class='{css_class}'>{_escape(message)}</div>"
-
-
 def page_template(content: str, request: Request) -> str:
     user = _current_user(request)
     auth_links = "<a href='/logout'>Logout</a>" if user else "<a href='/signin'>Sign In</a> <a href='/create-account'>Create Account</a>"
@@ -111,12 +94,9 @@ def page_template(content: str, request: Request) -> str:
   </main>
 </body>
 </html>"""
-
-
 def render_home(request: Request):
     if not _current_user(request):
         return RedirectResponse(url="/signin", status_code=303)
-
     content = """
     <section class='card'>
       <h2>Indian Cattle & Buffalo Breed Classifier</h2>
@@ -134,8 +114,6 @@ def render_home(request: Request):
       </form>
     </section>"""
     return HTMLResponse(page_template(content, request))
-
-
 def render_signin(request: Request, message: str = "", *, is_error: bool = False) -> str:
     content = f"""
     <section class='card'>
@@ -149,8 +127,6 @@ def render_signin(request: Request, message: str = "", *, is_error: bool = False
       <p>New user? <a href='/create-account'>Create account</a></p>
     </section>"""
     return page_template(content, request)
-
-
 def render_create_account(request: Request, message: str = "", *, is_error: bool = False) -> str:
     content = f"""
     <section class='card'>
@@ -164,8 +140,6 @@ def render_create_account(request: Request, message: str = "", *, is_error: bool
       </form>
     </section>"""
     return page_template(content, request)
-
-
 def render_result(
     request: Request,
     prediction: PredictionResult,
@@ -190,23 +164,18 @@ def render_result(
       </div>
     </section>"""
     return page_template(content, request)
-
-
 def resolve_location_label(gps_coordinates: str) -> str:
     gps = gps_coordinates.strip()
     if not gps:
         return "N/A"
-
     try:
         lat_text, lon_text = [part.strip() for part in gps.split(",", 1)]
         lat = float(lat_text)
         lon = float(lon_text)
     except ValueError:
         return f"Invalid GPS format: {gps}. Use 'lat,long'."
-
     if not (-90 <= lat <= 90 and -180 <= lon <= 180):
         return f"Invalid GPS range: {gps}. Latitude must be -90..90 and longitude must be -180..180."
-
     try:
         query = urllib.parse.urlencode(
             {
@@ -225,7 +194,6 @@ def resolve_location_label(gps_coordinates: str) -> str:
             data = json.loads(response.read().decode("utf-8"))
     except Exception:
         return f"{gps} (location lookup unavailable)"
-
     address = data.get("address", {})
     locality = address.get("village") or address.get("town") or address.get("city") or address.get("hamlet")
     region = address.get("state") or address.get("county") or ""
@@ -233,21 +201,15 @@ def resolve_location_label(gps_coordinates: str) -> str:
     if locality:
         return ", ".join(part for part in [locality, region, country] if part)
     return data.get("display_name") or gps
-
-
 def _extract_bundle(bundle_path: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     with tarfile.open(bundle_path, "r:gz") as archive:
         archive.extractall(destination, filter="data")
-
-
 def _bundle_files(bundle_path: Path, destination: Path) -> list[Path]:
     if not bundle_path.exists():
         raise FileNotFoundError(f"Bundle not found: {bundle_path}")
     _extract_bundle(bundle_path, destination)
     return [path for path in destination.rglob("*") if path.is_file()]
-
-
 def _load_classes(classes_path: Path) -> list[str]:
     with classes_path.open("r", encoding="utf-8") as classes_file:
         classes = json.load(classes_file)
@@ -256,8 +218,6 @@ def _load_classes(classes_path: Path) -> list[str]:
     if not classes:
         raise ValueError("class_names.json must contain at least one class name")
     return classes
-
-
 def _load_int8_model(model_path: Path, classes: list[str]) -> torch.nn.Module:
     base_model = models.efficientnet_b0(weights=None)
     base_model.classifier[1] = nn.Linear(base_model.classifier[1].in_features, len(classes))
@@ -265,28 +225,21 @@ def _load_int8_model(model_path: Path, classes: list[str]) -> torch.nn.Module:
     state = torch.load(model_path, map_location="cpu")
     quantized_model.load_state_dict(state)
     return quantized_model.eval()
-
-
 def _load_from_bundle(bundle_path: Path) -> tuple[torch.nn.Module, list[str], dict[str, str]]:
     bundle_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle"
     files = _bundle_files(bundle_path, bundle_dir)
     classes_paths = [path for path in files if path.name == "class_names.json"]
     int8_paths = [path for path in files if path.name == "breed_classifier_int8.pt"]
     torchscript_paths = [path for path in files if path.name == "breed_classifier_ts.pt"]
-
     if not classes_paths:
         raise FileNotFoundError("Model bundle missing class_names.json")
     if not int8_paths and not torchscript_paths:
         raise FileNotFoundError("Model bundle missing breed_classifier_int8.pt or breed_classifier_ts.pt")
-
     classes = _load_classes(classes_paths[0])
     if int8_paths:
         return _load_int8_model(int8_paths[0], classes), classes, {"type": "int8"}
-
     torchscript_model = torch.jit.load(str(torchscript_paths[0]), map_location="cpu").eval()
     return torchscript_model, classes, {"type": "torchscript"}
-
-
 def _normalize_loaded(loaded: Any) -> tuple[torch.nn.Module, list[str], dict[str, Any]]:
     if isinstance(loaded, tuple):
         if len(loaded) == 3:
@@ -298,26 +251,20 @@ def _normalize_loaded(loaded: Any) -> tuple[torch.nn.Module, list[str], dict[str
     if isinstance(loaded, dict):
         return loaded.get("model"), loaded.get("classes"), loaded.get("meta", {"type": "unknown"})
     raise RuntimeError(f"Unexpected loader output type={type(loaded)}")
-
-
 def get_model() -> tuple[torch.nn.Module, list[str]]:
     global MODEL, CLASSES, MODEL_META
     if MODEL is None or CLASSES is None:
         MODEL, CLASSES, MODEL_META = _normalize_loaded(_load_from_bundle(_model_bundle_path()))
     return MODEL, CLASSES
-
-
 def inspect_bundle_files() -> dict[str, Any]:
     bundle_path = _model_bundle_path()
     info: dict[str, Any] = {"bundle_path": str(bundle_path), "exists": bundle_path.exists(), "files": []}
     if not bundle_path.exists():
         return info
-
     debug_dir = Path(tempfile.gettempdir()) / "cattle_model_bundle_debug"
     files = _bundle_files(bundle_path, debug_dir)
     info["files"] = sorted(str(path.relative_to(debug_dir)) for path in files)
     return info
-
 
 def _predict_image(image: Image.Image, model: torch.nn.Module, classes: list[str]) -> PredictionResult:
     tensor = TFMS(image).unsqueeze(0)
@@ -333,21 +280,17 @@ def _predict_image(image: Image.Image, model: torch.nn.Module, classes: list[str
     )
     return PredictionResult(breed=classes[top_index], confidence=values[0].item() * 100, rows_html=rows)
 
-
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"status": "ok", "model_loaded": MODEL is not None, "model_type": (MODEL_META or {}).get("type")}
-
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return render_home(request)
 
-
 @app.get("/signin", response_class=HTMLResponse)
 def signin_page(request: Request) -> HTMLResponse:
     return HTMLResponse(render_signin(request))
-
 
 @app.post("/signin")
 async def signin(request: Request, identity: str = Form(...), password: str = Form(...)):
@@ -355,15 +298,12 @@ async def signin(request: Request, identity: str = Form(...), password: str = Fo
     stored = USERS.get(user_key)
     if not stored or stored["password"] != password:
         return HTMLResponse(render_signin(request, "Invalid credentials", is_error=True), status_code=401)
-
     request.session["user"] = stored["username"]
     return RedirectResponse(url="/", status_code=303)
-
 
 @app.get("/create-account", response_class=HTMLResponse)
 def create_account_page(request: Request) -> HTMLResponse:
     return HTMLResponse(render_create_account(request))
-
 
 @app.post("/create-account", response_class=HTMLResponse)
 async def create_account(
@@ -392,19 +332,16 @@ async def create_account(
     USERS[email_key] = user_record
     return HTMLResponse(render_signin(request, f"Account created for {clean_username}. Please sign in."))
 
-
 @app.get("/logout")
 def logout(request: Request) -> RedirectResponse:
     request.session.clear()
     return RedirectResponse(url="/signin", status_code=303)
-
 
 @app.get("/debug/bundle")
 def debug_bundle() -> dict[str, Any]:
     if os.getenv(DEBUG_BUNDLE_FLAG, "false").lower() != "true":
         raise HTTPException(status_code=403, detail=f"Enable {DEBUG_BUNDLE_FLAG}=true to use this endpoint")
     return inspect_bundle_files()
-
 
 @app.post("/predict", response_class=HTMLResponse)
 async def predict_page(
@@ -415,13 +352,11 @@ async def predict_page(
 ):
     if not _current_user(request):
         return RedirectResponse(url="/signin", status_code=303)
-
     try:
         content = await file.read()
         image = Image.open(BytesIO(content)).convert("RGB")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Invalid image: {exc}") from exc
-
     try:
         model, classes = get_model()
     except Exception as exc:
